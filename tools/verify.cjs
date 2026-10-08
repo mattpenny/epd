@@ -57,6 +57,40 @@ const readBeachMarks = (page) => page.evaluate(() => {
   return out;
 });
 
+/* 量測子分頁列與它所屬分頁的對齊情形。
+   桌面＝對齊頂部分頁列的「水質數據」；手機＝對齊底部導覽的「水質數據」。
+   refEdge 是箭嘴尖端應該觸及的那條邊（桌面＝頂欄底邊、手機＝底部導覽頂邊）。 */
+const readSubTabGeo = (page) => page.evaluate(() => {
+  const nav = document.querySelector('#sub-tabs');
+  const caret = document.querySelector('#sub-caret');
+  const mobile = window.matchMedia('(max-width: 767px)').matches;
+  const anchor = document.querySelector(
+    mobile ? '#bottom-nav .tab[data-tab="water"]' : '#tabs .tab[data-tab="water"]');
+  const topbar = document.querySelector('.topbar');
+  const bottomNav = document.querySelector('.bottom-nav');
+  if (!nav || !anchor || !topbar || !bottomNav) return null;
+  const a = anchor.getBoundingClientRect();
+  const n = nav.getBoundingClientRect();
+  const c = caret ? caret.getBoundingClientRect() : null;
+  const refEdge = mobile
+    ? bottomNav.getBoundingClientRect().top
+    : topbar.getBoundingClientRect().bottom;
+  const vw = document.documentElement.clientWidth;
+  return {
+    mobile,
+    anchorLeft: Math.round(a.left),
+    anchorCenter: Math.round(a.left + a.width / 2),
+    navLeft: Math.round(n.left),
+    navRight: Math.round(n.right),
+    caretCenter: c ? Math.round(c.left + c.width / 2) : null,
+    caretTip: c ? Math.round(mobile ? c.bottom : c.top) : null,
+    refEdge: Math.round(refEdge),
+    vw,
+    overflowsViewport: n.right > vw + 1 || n.left < -1,
+    chipsScroll: nav.scrollWidth > nav.clientWidth + 1
+  };
+});
+
 /* 等待地圖範圍內的圖塊全部載入完成 */
 async function waitTiles(page, ms) {
   const deadline = Date.now() + ms;
@@ -195,6 +229,17 @@ async function waitTiles(page, ms) {
     const lt = (await page.textContent('#legend-title')).trim();
     check(`切換至「${id}」Tab`, cur === id, `legend=${lt}`);
 
+    if (id !== 'water') {
+      /* 非「水質數據」分頁不該留下子分頁箭嘴飄在地圖上 */
+      const caretHidden = await page.evaluate(() => {
+        const c = document.querySelector('#sub-caret');
+        const n = document.querySelector('#sub-tabs');
+        return (!c || getComputedStyle(c).display === 'none')
+          && (!n || getComputedStyle(n).display === 'none');
+      });
+      check(`切換至「${id}」後子分頁與箭嘴皆隱藏`, caretHidden, '');
+    }
+
     if (id === 'water') {
       /* 「水質數據」分頁必須出現 3 個子分頁，且預設停在泳灘 */
       const subInfo = await page.evaluate(() => ({
@@ -217,6 +262,38 @@ async function waitTiles(page, ms) {
 
       const nm = await page.evaluate(() => document.querySelectorAll('.leaflet-marker-icon').length);
       check('泳灘圖層有標記', nm > 0, `markers=${nm}`);
+
+      /* ---- (a0) 子分頁列必須「開在它所屬的分頁正下方」 ----
+         只檢查左緣對齊與箭嘴指向：使用者要能一眼看出子分頁隸屬「水質數據」。 */
+      const geo = await readSubTabGeo(page);
+      check('子分頁列左緣對齊「水質數據」分頁',
+        !!geo && Math.abs(geo.navLeft - geo.anchorLeft) <= 2,
+        `navLeft=${geo && geo.navLeft} anchorLeft=${geo && geo.anchorLeft}`);
+      check('子分頁箭嘴指向「水質數據」分頁中心',
+        !!geo && Math.abs(geo.caretCenter - geo.anchorCenter) <= 2,
+        `caret=${geo && geo.caretCenter} anchorCenter=${geo && geo.anchorCenter}`);
+      check('子分頁箭嘴尖端觸及頂部分頁列底邊',
+        !!geo && Math.abs(geo.caretTip - geo.refEdge) <= 3,
+        `tip=${geo && geo.caretTip} ref=${geo && geo.refEdge}`);
+      check('子分頁列不超出視窗，且三個子分頁無需橫向捲動',
+        !!geo && !geo.overflowsViewport && !geo.chipsScroll,
+        `left=${geo && geo.navLeft} right=${geo && geo.navRight} vw=${geo && geo.vw} scroll=${geo && geo.chipsScroll}`);
+
+      /* 迴歸守門：載入轉圈（12px + 6px 間距）會把分頁撐寬 18px，連帶推移
+         「水質數據」的位置。修復前子分頁列只在切換當下量一次，因此會偏掉 18px。
+         這裡在「水質數據」左邊的分頁上掛轉圈，驗證子分頁列會自動跟上。 */
+      await page.evaluate(() => {
+        document.querySelectorAll('.tab[data-tab="air"]').forEach((b) => b.classList.add('is-loading'));
+      });
+      await page.waitForTimeout(600);
+      const geoSpin = await readSubTabGeo(page);
+      check('左側分頁轉圈撐寬後，子分頁列仍自動保持對齊',
+        !!geoSpin && Math.abs(geoSpin.navLeft - geoSpin.anchorLeft) <= 2,
+        `navLeft=${geoSpin && geoSpin.navLeft} anchorLeft=${geoSpin && geoSpin.anchorLeft}`);
+      await page.evaluate(() => {
+        document.querySelectorAll('.tab[data-tab="air"]').forEach((b) => b.classList.remove('is-loading'));
+      });
+      await page.waitForTimeout(400);
 
       /* 官方 EPD「最新泳灘水質等級」圖例用色。等級 1 是淺青而非綠色，
          這是官方慣例，因此把色碼釘在測試裡當作規格。 */
@@ -659,6 +736,38 @@ async function waitTiles(page, ms) {
   check('手機版圖例預設折疊', mobile.legendCollapsed, '');
   check('手機版圖例顯示在底部導航欄之上', mobile.legendVisible && mobile.legendAboveNav,
     `legendBottom=${mobile.legendBottom} navTop=${mobile.navTop}`);
+
+  /* 手機版子分頁列改為對齊底部導覽的「水質數據」，箭嘴改朝下指向它 */
+  await page.click('#bottom-nav .tab[data-tab="water"]');
+  await page.waitForTimeout(3000);
+  const geoM = await readSubTabGeo(page);
+  /* 390px 這種窄螢幕上，三個子分頁（約 371px）本身已佔滿可用寬度，
+     硬要對齊「水質數據」的 x=90 就會超出畫面，因此允許夾住後貼齊左緣 ——
+     此時改由箭嘴維繫「子分頁隸屬於誰」的線索。要擋的是「既沒對齊、
+     又不是夾住後的位置」這種說不出理由的漂移。 */
+  const mAligned = !!geoM && Math.abs(geoM.navLeft - geoM.anchorLeft) <= 2;
+  const mClampedFlush = !!geoM && geoM.navLeft <= 12;
+  check('手機版子分頁列對齊「水質數據」；寬度不足時貼齊左緣且不超出畫面',
+    (mAligned || mClampedFlush) && !!geoM && !geoM.overflowsViewport,
+    `navLeft=${geoM && geoM.navLeft} anchorLeft=${geoM && geoM.anchorLeft} aligned=${mAligned} clamped=${mClampedFlush} overflow=${geoM && geoM.overflowsViewport}`);
+  check('手機版子分頁箭嘴向下指向「水質數據」按鈕',
+    !!geoM && Math.abs(geoM.caretCenter - geoM.anchorCenter) <= 2
+      && Math.abs(geoM.caretTip - geoM.refEdge) <= 3,
+    `caret=${geoM && geoM.caretCenter} anchor=${geoM && geoM.anchorCenter} tip=${geoM && geoM.caretTip} ref=${geoM && geoM.refEdge}`);
+  check('手機版子分頁列不超出視窗，且三個子分頁無需橫向捲動',
+    !!geoM && !geoM.overflowsViewport && !geoM.chipsScroll,
+    `left=${geoM && geoM.navLeft} right=${geoM && geoM.navRight} vw=${geoM && geoM.vw} scroll=${geoM && geoM.chipsScroll}`);
+
+  /* 較寬的手機／小平板（仍走底部導覽）有足夠空間，此時必須真的對齊 ——
+     否則上面的「允許貼齊左緣」會讓這條規則形同虛設。 */
+  await page.setViewportSize({ width: 600, height: 844 });
+  await page.waitForTimeout(1200);
+  const geoW = await readSubTabGeo(page);
+  check('寬螢幕手機（600px）子分頁列確實對齊「水質數據」',
+    !!geoW && Math.abs(geoW.navLeft - geoW.anchorLeft) <= 2,
+    `navLeft=${geoW && geoW.navLeft} anchorLeft=${geoW && geoW.anchorLeft} vw=${geoW && geoW.vw}`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(800);
 
   await page.screenshot({ path: path.join(OUT, 'mobile.png') });
 

@@ -125,10 +125,11 @@ body { overflow: hidden; }
    子分頁（僅「水質數據」分頁顯示）
    桌面版浮在主分頁列之下；手機版浮在底部導覽列之上（見 media query）。
    只在 body.has-subtabs 時出現，其餘分頁完全不佔位。
+   left 由 positionSubTabs() 依「水質數據」分頁的位置設定，此處為後備值。
    ============================================================ */
 .sub-tabs {
   position: absolute; z-index: 1150;
-  top: calc(var(--header-h) + 10px); left: 12px;
+  top: calc(var(--header-h) + 7px); left: 12px;
   display: none; align-items: center; gap: 4px;
   height: var(--subtab-h); padding: 4px;
   max-width: calc(100vw - 24px);
@@ -139,6 +140,21 @@ body { overflow: hidden; }
 }
 .sub-tabs::-webkit-scrollbar { display: none; }
 body.has-subtabs .sub-tabs { display: flex; }
+
+/* 箭嘴：指向子分頁所屬的分頁（桌面指向上方「水質數據」、手機指向下方底部導覽）。
+   刻意做成 #sub-tabs 的「兄弟節點」而非子元素 —— .sub-tabs 有 overflow-x: auto，
+   子元素會被裁掉；兄弟節點才能露出箭嘴。z-index 較低，下半部藏在膠囊後面。
+   位置與旋轉由 positionSubTabs() 設定。 */
+.sub-caret {
+  position: fixed; z-index: 1149;
+  display: none; width: 12px; height: 12px;
+  background: var(--popup-bg);
+  border-left: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
+  border-radius: 2px 0 0 0;
+  pointer-events: none;
+}
+body.has-subtabs .sub-caret { display: block; }
 .sub-tab {
   flex: 0 0 auto;
   display: inline-flex; align-items: center;
@@ -409,11 +425,15 @@ body.has-subtabs .sub-tabs { display: flex; }
     bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px);
     max-height: 46vh; overflow-y: auto;
   }
-  /* 手機：子分頁浮在底部導覽列之上；圖例與提示再往上讓開，避免疊在一起 */
+  /* 手機：子分頁浮在底部導覽列之上（左緣對齊「水質數據」按鈕，由 JS 設定）；
+     圖例與提示再往上讓開，避免疊在一起 */
   .sub-tabs {
-    top: auto; left: 8px; right: 8px; max-width: none; z-index: 1250;
+    top: auto; left: 8px; right: auto; max-width: calc(100vw - 16px); z-index: 1250;
     bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px);
   }
+  /* 手機：箭嘴改指向下方的底部導覽列。
+     注意：只改「旋轉」（由 JS 設為 225°），不可再改邊框所在的一側 ——
+     邊框留在上／左，轉 225° 後尖端自然朝下；兩者都改會互相抵銷。 */
   body.has-subtabs .legend {
     bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px + var(--subtab-h) + 6px);
   }
@@ -460,6 +480,7 @@ body.has-subtabs .sub-tabs { display: flex; }
 </header>
 
 <nav class="sub-tabs" role="tablist" id="sub-tabs" aria-label="水質數據子分頁"></nav>
+<span class="sub-caret" id="sub-caret" aria-hidden="true"></span>
 
 <main id="map" role="application" aria-label="香港環保數據地圖"></main>
 
@@ -1904,6 +1925,41 @@ body.has-subtabs .sub-tabs { display: flex; }
       b.addEventListener('click', () => onSubClick(b.dataset.sub));
       b.addEventListener('keydown', onSubKeydown);
     });
+    positionSubTabs();
+  }
+
+  /* 把子分頁列對齊「水質數據」分頁：桌面對齊頂部分頁列、手機對齊底部導覽列，
+     箭嘴擺在該分頁的水平中線上，讓使用者一眼看出子分頁隸屬於誰。
+     座標取自 getBoundingClientRect()；本頁 body 為 overflow:hidden 不滾動，
+     故視窗座標即絕對座標（箭嘴用 position:fixed 進一步保證一致）。 */
+  function positionSubTabs() {
+    const nav = $('#sub-tabs');
+    if (!nav || !document.body.classList.contains('has-subtabs')) return;
+
+    const mobile = window.matchMedia('(max-width: 767px)').matches;
+    // 取「實際可見」的那一組分頁按鈕（手機＝底部導覽、桌面＝頂部分頁列）
+    const anchor = document.querySelector(
+      mobile ? '#bottom-nav .tab[data-tab="water"]' : '#tabs .tab[data-tab="water"]');
+    if (!anchor || !anchor.getClientRects().length) return;
+
+    const a = anchor.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    const w = nav.offsetWidth;
+    // 左緣對齊分頁左緣，再往內夾住，確保整列不超出視窗
+    const left = Math.round(Math.max(8, Math.min(a.left, vw - w - 8)));
+    nav.style.left = left + 'px';
+    nav.style.right = 'auto';
+
+    const caret = $('#sub-caret');
+    if (!caret) return;
+    const pr = nav.getBoundingClientRect();
+    const cx = a.left + a.width / 2;
+    // 箭嘴以分頁中心為準，但不可越出子分頁列本身
+    caret.style.left = Math.round(Math.max(left + 14, Math.min(cx, left + w - 14))) + 'px';
+    /* 12×12 方塊轉 45°（或 225°）後，尖端比版面框再外伸約 2.5px；
+       這兩個數值讓尖端剛好觸及頂部分頁列的底邊／底部導覽的頂邊。 */
+    caret.style.top = (mobile ? pr.bottom - 4.5 : pr.top - 4.5) + 'px';
+    caret.style.transform = `translateX(-50%) rotate(${mobile ? 225 : 45}deg)`;
   }
 
   const onSubClick = debounce(function (sub) {
@@ -1955,6 +2011,9 @@ body.has-subtabs .sub-tabs { display: flex; }
   function setTabLoading(layerId, on) {
     const tabId = tabOfLayer(layerId);
     document.querySelectorAll(`.tab[data-tab="${tabId}"]`).forEach((b) => b.classList.toggle('is-loading', !!on));
+    /* 轉圈圖示（12px + 6px 間距）會把分頁撐寬 18px，連帶推移右邊的分頁。
+       若「水質數據」左邊的分頁正在載入，子分頁列就會偏掉，故立即重新對齊。 */
+    positionSubTabs();
   }
   function setTabError(layerId, on) {
     const tabId = tabOfLayer(layerId);
@@ -2269,7 +2328,28 @@ body.has-subtabs .sub-tabs { display: flex; }
     window.addEventListener('resize', debounce(() => {
       map.invalidateSize();
       syncMobileUI();
+      positionSubTabs();          // 分頁寬度／位置可能改變，子分頁列要重新對齊
     }, 150));
+
+    /* 頂部分頁列可橫向捲動（窄視窗），捲動時子分頁列必須跟著跑，
+       否則會與它所屬的分頁脫節。 */
+    const tabsNav = $('#tabs');
+    if (tabsNav) tabsNav.addEventListener('scroll', () => positionSubTabs(), { passive: true });
+
+    /* 中文字型（PingFang TC / Noto Sans TC）載入後分頁寬度會變，
+       屆時需再對齊一次。 */
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => positionSubTabs()).catch(() => {});
+    }
+
+    /* 安全網：任何分頁按鈕的尺寸變化（轉圈、字型、瀏覽器縮放、語言切換）
+       都會推移「水質數據」的水平位置，因此一律重新對齊。
+       positionSubTabs() 只改 #sub-tabs 的 left/top，不會回過頭改變分頁尺寸，
+       故不會造成 ResizeObserver 迴圈。 */
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => positionSubTabs());
+      document.querySelectorAll('.tab').forEach((b) => ro.observe(b));
+    }
 
     // 除錯／自動化測試用掛鉤（不影響一般使用）
     window.__hkEnvMap = {
@@ -2279,6 +2359,7 @@ body.has-subtabs .sub-tabs { display: flex; }
       activate: activate,
       setWaterSub: (sub) => { if (WATER_SUBS.indexOf(sub) >= 0) { state.waterSub = sub; updateSubTabs(); } },
       activeLayerId: activeLayerId,
+      positionSubTabs: positionSubTabs,
       reload: () => {
         const lid = activeLayerId();
         layers[lid] = null; state.loaded[lid] = false;
