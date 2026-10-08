@@ -1,0 +1,56 @@
+{
+  "name": "香港環保數據地圖",
+  "short_name": "環保數據地圖",
+  "description": "香港環保數據地圖 — 空氣質素、泳灘水質、回收點及低噪音路面空間數據。資料來源：環境保護署 / DATA.GOV.HK / 空間數據共享平台（CSDI）。",
+  "lang": "zh-Hant",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "categories": ["government", "environment", "navigation", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "香港空氣質素監測網絡",
+      "short_name": "空氣質素",
+      "url": "./index.html?tab=air"
+    },
+    {
+      "name": "泳灘水質等級",
+      "short_name": "泳灘水質",
+      "url": "./index.html?tab=beach"
+    },
+    {
+      "name": "綠在區區回收點",
+      "short_name": "回收點",
+      "url": "./index.html?tab=recycle"
+    },
+    {
+      "name": "低噪音路面",
+      "short_name": "低噪音路面",
+      "url": "./index.html?tab=noise"
+    }
+  ]
+}

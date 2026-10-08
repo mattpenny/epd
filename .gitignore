@@ -1,0 +1,16 @@
+# 建置／測試產物（由 tools/verify.cjs、tools/shots.cjs 產生，可隨時重建）
+.verify/
+.tmp/
+
+# WorkBuddy 代理工作記憶（非應用程式原始碼）
+.workbuddy-ai/
+
+# 作業系統
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 編輯器
+.vscode/
+.idea/
+*.swp

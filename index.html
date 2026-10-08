@@ -1,0 +1,2295 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="香港環保數據地圖 — 空氣質素、泳灘水質、回收點及低噪音路面空間數據">
+<title>香港環保數據地圖</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ffffff" id="meta-theme-color">
+<link rel="icon" href="icons/icon-192.png">
+
+<!-- Leaflet + MarkerCluster (CDN) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+
+<style>
+/* ============================================================
+   主題：CSS 自訂屬性（深色 / 淺色）
+   ============================================================ */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --border-color: #e0e0e0;
+  --tab-active: #0066cc;
+  --popup-bg: #ffffff;
+  --popup-text: #1a1a1a;
+  --shadow: 0 2px 10px rgba(0,0,0,.12);
+  --shadow-strong: 0 6px 24px rgba(0,0,0,.18);
+  --header-h: 60px;
+  --bottomnav-h: 0px;
+  --subtab-h: 42px;
+}
+[data-theme="dark"] {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --text-primary: #eaeaea;
+  --text-secondary: #a0a0a0;
+  --border-color: #2a2a4a;
+  --tab-active: #4da6ff;
+  --popup-bg: #1e1e3a;
+  --popup-text: #eaeaea;
+  --shadow: 0 2px 10px rgba(0,0,0,.5);
+  --shadow-strong: 0 6px 24px rgba(0,0,0,.6);
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .25s ease, color .25s ease;
+}
+body { overflow: hidden; }
+
+/* ============================================================
+   頂部導航欄
+   ============================================================ */
+.topbar {
+  position: relative; z-index: 1200;
+  height: var(--header-h);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 14px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+.brand { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.brand-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: linear-gradient(135deg, #16a34a, #4da6ff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tab-active) 18%, transparent);
+}
+.brand h1 {
+  font-size: 15px; font-weight: 700; margin: 0; white-space: nowrap;
+  letter-spacing: .2px;
+}
+
+.tabs {
+  display: flex; align-items: stretch; gap: 4px;
+  flex: 1 1 auto; overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 12px;
+  border: 0; background: transparent; cursor: pointer;
+  color: var(--text-secondary); font-size: 13px; font-weight: 600;
+  font-family: inherit; white-space: nowrap;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 3px solid transparent;
+  transition: color .18s, background-color .18s, border-color .18s;
+}
+.tab:hover { color: var(--text-primary); background: var(--bg-secondary); }
+.tab[aria-selected="true"] {
+  color: var(--tab-active);
+  border-bottom-color: var(--tab-active);
+  background: color-mix(in srgb, var(--tab-active) 8%, transparent);
+}
+.tab:focus-visible { outline: 2px solid var(--tab-active); outline-offset: 2px; }
+.tab .tab-icon { font-size: 15px; line-height: 1; }
+.tab .err-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #e74c3c; box-shadow: 0 0 0 2px var(--bg-primary);
+  display: none;
+}
+.tab.has-error .err-dot { display: block; }
+.tab .spinner-mini {
+  width: 12px; height: 12px; flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--tab-active) 30%, transparent);
+  border-top-color: var(--tab-active);
+  border-radius: 50%; animation: spin .8s linear infinite;
+  display: none;
+}
+.tab.is-loading .spinner-mini { display: inline-block; }
+
+/* ============================================================
+   子分頁（僅「水質數據」分頁顯示）
+   桌面版浮在主分頁列之下；手機版浮在底部導覽列之上（見 media query）。
+   只在 body.has-subtabs 時出現，其餘分頁完全不佔位。
+   ============================================================ */
+.sub-tabs {
+  position: absolute; z-index: 1150;
+  top: calc(var(--header-h) + 10px); left: 12px;
+  display: none; align-items: center; gap: 4px;
+  height: var(--subtab-h); padding: 4px;
+  max-width: calc(100vw - 24px);
+  overflow-x: auto; scrollbar-width: none;
+  background: var(--popup-bg); color: var(--popup-text);
+  border: 1px solid var(--border-color); border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.sub-tabs::-webkit-scrollbar { display: none; }
+body.has-subtabs .sub-tabs { display: flex; }
+.sub-tab {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center;
+  height: 100%; padding: 0 13px;
+  border: 0; border-radius: 999px; background: transparent;
+  color: var(--text-secondary); font-family: inherit;
+  font-size: 12.5px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  transition: color .18s, background-color .18s;
+}
+.sub-tab:hover { color: var(--text-primary); background: var(--bg-secondary); }
+.sub-tab[aria-selected="true"] { color: #fff; background: var(--tab-active); }
+.sub-tab:focus-visible { outline: 2px solid var(--tab-active); outline-offset: 2px; }
+
+.actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.icon-btn {
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-color); border-radius: 10px;
+  background: var(--bg-secondary); color: var(--text-primary);
+  cursor: pointer; font-size: 15px; font-family: inherit; font-weight: 600;
+  transition: background-color .18s, border-color .18s, transform .12s;
+}
+.icon-btn:hover { border-color: var(--tab-active); color: var(--tab-active); }
+.icon-btn:active { transform: scale(.96); }
+.icon-btn:focus-visible { outline: 2px solid var(--tab-active); outline-offset: 2px; }
+#lang-btn { font-size: 12px; letter-spacing: .3px; }
+
+/* ============================================================
+   地圖
+   ============================================================ */
+#map {
+  position: absolute; inset: var(--header-h) 0 0 0;
+  background: var(--bg-secondary);
+  z-index: 1;
+}
+.leaflet-container { background: var(--bg-secondary); font-family: inherit; }
+.leaflet-container a { color: var(--tab-active); }
+
+/* ============================================================
+   圖例
+   ============================================================ */
+.legend {
+  position: absolute; right: 12px; bottom: 24px; z-index: 900;
+  max-width: 250px;
+  background: var(--popup-bg); color: var(--popup-text);
+  border: 1px solid var(--border-color); border-radius: 10px;
+  box-shadow: var(--shadow);
+  font-size: 12px; overflow: hidden;
+}
+.legend-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px; font-weight: 700; font-size: 12.5px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  cursor: default;
+}
+.legend-toggle {
+  display: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--text-secondary); font-size: 13px; font-family: inherit;
+  min-width: 28px; min-height: 28px;
+}
+.legend-body { padding: 9px 12px 11px; }
+.legend-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; line-height: 1.35; }
+.legend-swatch {
+  width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+  border: 1px solid rgba(0,0,0,.18);
+}
+.legend-line { width: 18px; height: 0; border-top: 3px solid #8e44ad; border-radius: 2px; flex: 0 0 auto; }
+.legend-note {
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color);
+  color: var(--text-secondary); font-size: 10.5px; line-height: 1.45;
+}
+.legend-sub { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border-color); }
+.legend-sub label {
+  display: flex; align-items: center; gap: 7px; margin: 5px 0;
+  cursor: pointer; font-size: 11.5px; color: var(--text-primary);
+}
+.legend-sub input { accent-color: var(--tab-active); width: 15px; height: 15px; }
+
+/* ============================================================
+   Popup（統一 .custom-popup）
+   ============================================================ */
+.leaflet-popup-content-wrapper {
+  background: var(--popup-bg); color: var(--popup-text);
+  border-radius: 8px; box-shadow: var(--shadow-strong);
+  border: 1px solid var(--border-color);
+}
+.leaflet-popup-tip { background: var(--popup-bg); border: 1px solid var(--border-color); }
+.leaflet-popup-content { margin: 0; }
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--text-secondary); font-size: 22px; width: 32px; height: 32px;
+  padding: 5px 0 0 0; line-height: 1; z-index: 2;
+}
+.leaflet-container a.leaflet-popup-close-button:hover { color: var(--text-primary); }
+
+.custom-popup { max-width: 280px; width: 280px; font-size: 13px; color: var(--popup-text); }
+.custom-popup .cp-title {
+  font-size: 16px; font-weight: 700; line-height: 1.35;
+  padding: 12px 34px 8px 13px; margin: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.custom-popup .cp-body { padding: 10px 13px 12px; }
+.custom-popup .cp-row { display: flex; gap: 8px; margin: 6px 0; line-height: 1.45; }
+.custom-popup .cp-label {
+  flex: 0 0 auto; min-width: 84px; color: var(--text-secondary); font-size: 12px;
+}
+.custom-popup .cp-value { flex: 1 1 auto; word-break: break-word; }
+.custom-popup .cp-address { color: var(--text-secondary); font-size: 12px; }
+.custom-popup .cp-sub { color: var(--text-secondary); font-size: 11.5px; margin-top: 2px; }
+
+/* 彩色標籤：關鍵數值 */
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-weight: 700; font-size: 12.5px; color: #fff; line-height: 1.5;
+  white-space: nowrap;
+}
+.badge.aqhi-1 { background: #009e49; }
+.badge.aqhi-2 { background: #f2c200; color: #3a2f00; }
+.badge.aqhi-3 { background: #f28c00; }
+.badge.aqhi-4 { background: #e02020; }
+.badge.aqhi-5 { background: #8b0000; }
+/* 泳灘等級徽章不在此處上色：色碼由 JS 的 BEACH_COLOR 對照表提供並以
+   inline style 套用，確保圖例色塊、Popup 徽章、地圖標記三者永遠一致。
+   等級 1 為淺青而非綠色（官方 EPD 慣例），文字色因此隨等級而異。 */
+/* 量測值徽章（溶解氧／五天生化需氧量）：中性色 —— 官方沒有等級評級，
+   不可借用等級色盤，否則會誤導成「官方分級」。 */
+.badge.badge-param {
+  background: var(--bg-secondary); color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.custom-popup .cp-foot {
+  margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border-color);
+  color: var(--text-secondary); font-size: 10.5px; line-height: 1.5;
+}
+.custom-popup .cp-desc {
+  color: var(--text-secondary); font-size: 11px; line-height: 1.5;
+  margin: 0 0 8px; font-style: italic;
+}
+.custom-popup .cp-desc + .cp-title { border-top: 0; }
+
+/* MarkerCluster 主題化 */
+.marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+  background-color: color-mix(in srgb, var(--tab-active) 28%, transparent);
+}
+.marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+  background-color: var(--tab-active); color: #fff; font-weight: 700;
+}
+.marker-cluster { border-radius: 50%; }
+
+/* L10 噪音影像為灰階圖（黑色代表無資料／低噪音）。
+   用 screen 混合模式讓黑色「消失」、亮部疊加在地圖上，讀起來像熱力圖。 */
+.l10-tile { mix-blend-mode: screen; }
+
+/* 自訂標記 */
+.pin {
+  width: 22px; height: 22px; border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg); border: 2px solid #fff;
+  box-shadow: 0 1px 5px rgba(0,0,0,.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.pin span { transform: rotate(45deg); font-size: 10px; line-height: 1; color: #fff; }
+
+/* ============================================================
+   載入指示器
+   ============================================================ */
+.loading {
+  position: absolute; left: 50%; top: calc(var(--header-h) + 16px);
+  transform: translateX(-50%); z-index: 1100;
+  display: none; align-items: center; gap: 10px;
+  padding: 9px 16px; border-radius: 999px;
+  background: var(--popup-bg); color: var(--popup-text);
+  border: 1px solid var(--border-color); box-shadow: var(--shadow);
+  font-size: 12.5px; font-weight: 600;
+}
+.loading.show { display: flex; }
+.spinner {
+  width: 16px; height: 16px; flex: 0 0 auto;
+  border: 2.5px solid color-mix(in srgb, var(--tab-active) 25%, transparent);
+  border-top-color: var(--tab-active);
+  border-radius: 50%; animation: spin .75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast（錯誤提示） */
+.toast {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px);
+  z-index: 1300; opacity: 0; pointer-events: none;
+  max-width: min(90vw, 420px);
+  padding: 10px 16px; border-radius: 10px;
+  background: #b3261e; color: #fff; font-size: 12.5px; line-height: 1.45;
+  box-shadow: var(--shadow-strong);
+  transition: opacity .25s, transform .25s;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* A2HS 提示 */
+.a2hs {
+  position: absolute; right: 12px; top: calc(var(--header-h) + 12px); z-index: 1150;
+  display: none; align-items: center; gap: 8px;
+  padding: 9px 12px; border-radius: 10px; cursor: pointer;
+  background: var(--popup-bg); color: var(--popup-text);
+  border: 1px solid var(--border-color); box-shadow: var(--shadow);
+  font-size: 12px; font-family: inherit; font-weight: 600;
+}
+.a2hs.show { display: flex; }
+.a2hs .close-x {
+  border: 0; background: transparent; color: var(--text-secondary);
+  cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 4px;
+}
+
+/* 螢幕閱讀器專用 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ============================================================
+   響應式：平板 768–1024
+   ============================================================ */
+@media (max-width: 1024px) {
+  .brand h1 { font-size: 14px; }
+  .tab .tab-label { display: none; }
+  .tab { padding: 0 14px; }
+  .tab .tab-icon { font-size: 18px; }
+  .custom-popup { max-width: 260px; width: 260px; }
+}
+
+/* ============================================================
+   響應式：手機 < 768 → 底部導航欄
+   ============================================================ */
+@media (max-width: 767px) {
+  :root { --header-h: 52px; --bottomnav-h: 60px; }
+  .topbar { padding: 0 10px; }
+  .brand h1 { font-size: 13px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+  .tabs { display: none; }                       /* 手機隱藏頂部 Tab */
+
+  .actions { margin-left: auto; }
+  .icon-btn { min-width: 40px; min-height: 40px; border-radius: 9px; }
+
+  #map { inset: var(--header-h) 0 calc(var(--bottomnav-h) + env(safe-area-inset-bottom)) 0; }
+
+  /* 底部導航欄 */
+  .bottom-nav {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 1200;
+    display: flex; align-items: stretch;
+    height: calc(var(--bottomnav-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+  }
+  .bottom-nav .tab {
+    flex: 1 1 0; flex-direction: column; gap: 3px;
+    justify-content: center; min-height: 44px; padding: 4px 2px;
+    border-radius: 0; border-bottom: 0; border-top: 3px solid transparent;
+    font-size: 10px;
+  }
+  .bottom-nav .tab[aria-selected="true"] {
+    border-top-color: var(--tab-active); background: transparent;
+  }
+  .bottom-nav .tab .tab-icon { font-size: 19px; }
+  .bottom-nav .tab .tab-label { display: block; max-width: 22vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bottom-nav .tab .err-dot { top: 5px; right: 22%; }
+
+  /* 手機：圖例可折疊（抬到底部導航欄之上） */
+  .legend {
+    right: 8px; left: 8px; max-width: none;
+    bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px);
+    max-height: 46vh; overflow-y: auto;
+  }
+  /* 手機：子分頁浮在底部導覽列之上；圖例與提示再往上讓開，避免疊在一起 */
+  .sub-tabs {
+    top: auto; left: 8px; right: 8px; max-width: none; z-index: 1250;
+    bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px);
+  }
+  body.has-subtabs .legend {
+    bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px + var(--subtab-h) + 6px);
+  }
+  body.has-subtabs .toast {
+    bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 12px + var(--subtab-h) + 6px);
+  }
+  .legend.collapsed .legend-body { display: none; }
+  .legend-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  .legend-head { cursor: pointer; position: sticky; top: 0; background: var(--bg-secondary); }
+
+  /* 手機：Popup 字體縮小、關閉按鈕加大 */
+  .custom-popup { max-width: 90vw; width: 90vw; font-size: 12px; }
+  .custom-popup .cp-title { font-size: 15px; padding-right: 38px; }
+  .custom-popup .cp-label { min-width: 72px; font-size: 11.5px; }
+  .leaflet-container a.leaflet-popup-close-button {
+    font-size: 26px; width: 40px; height: 40px; padding-top: 7px;
+  }
+  .a2hs { top: auto; bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px); }
+  .toast { bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 12px); }
+}
+@media (min-width: 768px) { .bottom-nav { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-dot" aria-hidden="true"></span>
+    <h1 id="app-title">香港環保數據地圖</h1>
+  </div>
+
+  <nav class="tabs" role="tablist" id="tabs" aria-label="數據圖層"></nav>
+
+  <div class="actions">
+    <button class="icon-btn" id="theme-btn" type="button"
+            aria-label="切換深色/淺色模式" title="切換深色/淺色模式">🌙</button>
+    <button class="icon-btn" id="lang-btn" type="button"
+            aria-label="切換語言 中文/English" title="切換語言">中 / EN</button>
+  </div>
+</header>
+
+<nav class="sub-tabs" role="tablist" id="sub-tabs" aria-label="水質數據子分頁"></nav>
+
+<main id="map" role="application" aria-label="香港環保數據地圖"></main>
+
+<nav class="bottom-nav" role="tablist" id="bottom-nav" aria-label="數據圖層"></nav>
+
+<aside id="legend" class="legend" aria-live="polite" aria-label="圖例">
+  <div class="legend-head" id="legend-head">
+    <span id="legend-title">圖例</span>
+    <button class="legend-toggle" id="legend-toggle" type="button"
+            aria-expanded="false" aria-controls="legend-body">▾</button>
+  </div>
+  <div class="legend-body" id="legend-body"></div>
+</aside>
+
+<div id="loading" class="loading" role="status" aria-live="polite">
+  <span class="spinner" aria-hidden="true"></span>
+  <span id="loading-text">載入中…</span>
+</div>
+
+<div id="toast" class="toast" role="alert"></div>
+
+<button id="a2hs" class="a2hs" type="button">
+  <span>📲 <span id="a2hs-text">加到主畫面</span></span>
+  <span class="close-x" id="a2hs-close" role="button" aria-label="關閉">✕</span>
+</button>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+/* ==========================================================================
+   香港環保數據地圖
+   資料來源：環境保護署（EPD）／ DATA.GOV.HK ／ 空間數據共享平台（CSDI）
+   所有標籤文字沿用 DATA.GOV.HK 及環保署官方原文。
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  /* ======================================================================
+     1. i18n 翻譯物件（繁體中文文字與官方原文一致）
+     ====================================================================== */
+  const i18n = {
+    tc: {
+      title: '香港環保數據地圖',
+      tabs: {
+        air: '香港空氣質素監測網絡',
+        water: '水質數據',
+        recycle: '綠在區區回收點',
+        noise: '低噪音路面',
+        cnp: '已簽發的建築噪音許可證'
+      },
+      /* 「水質數據」分頁的子分頁（名稱沿用官方數據集標題） */
+      subs: {
+        beach: '泳灘水質等級',
+        marine: '近期海水水質數據',
+        river: '近期河溪水質數據'
+      },
+      datasetNames: {
+        airNetwork: '香港空氣質素監測網絡',
+        aqhi: '現時空氣質素健康指數',
+        beachGrading: '泳灘水質等級',
+        marineWater: '近期海水水質數據',
+        riverWater: '近期河溪水質數據',
+        cnp: '已簽發的建築噪音許可證',
+        lnrs: '低噪音路面',
+        l10_2020: '2020 年高度為 4 米的 L10 (1 小時)噪音水平',
+        industrial: '工業區(影響因素)',
+        river: '過去河溪水質數據',
+        marine: '過去海水水質數據',
+        habitat: '環評報告中的生境圖',
+        recyclePoints: '回收點數據資料'
+      },
+      datasetDescriptions: {
+        airNetwork: '香港空氣質素監測網絡由一般和路邊空氣質素監測站組成，分別持續監測大氣和路邊的污染物水平。',
+        aqhi: '現時各個一般及路邊空氣質素監測站的空氣質素健康指數。',
+        beachGrading: '最新泳灘水質等級資料（最新資料會在抽取樣本後48 小時內更新）。',
+        marineWater: '各海水水質監測站溶解氧及五天生化需氧量數據。',
+        riverWater: '主要河溪下游水質監測站溶解氧及五天生化需氧量數據。',
+        cnp: '根據《噪音管制條例》簽發的建築噪音許可證資料，包括許可證類別、編號、簽發日期、有效期、承辦商及工地位置。',
+        lnrs: '數據顯示在制作噪音地圖時鋪設低噪音路面的位置。',
+        l10_2020: '2020 年噪音地圖最繁忙的交通時段的 L10(1 小時)噪音水平 (高度為 4 米)。',
+        industrial: '數據顯示了根據《噪音管制條例》下技術備忘錄去決定「地區對噪音感應程度的級別」的工業區(影響因素)的位置。',
+        river: '空間數據共享平台上關於過去河溪水質數據的空間數據集。多種文件格式可用於應用程式介面中下載。',
+        marine: '空間數據共享平台上關於過去海水水質數據的空間數據集。多種文件格式可用於應用程式介面中下載。',
+        habitat: '已核准的環境影響評估報告中的生境圖。'
+      },
+      popup: {
+        station: '監測站',
+        aqhi: '空氣質素健康指數',
+        riskLevel: '健康風險級別',
+        address: '地址',
+        recycleType: '回收物種類',
+        waterQuality: '水質等級',
+        sampleDate: '採樣日期',
+        lastUpdate: '最後更新',
+        source: '資料來源：環境保護署',
+        road: '道路名稱',
+        surfaceType: '路面類型',
+        stationType: '空氣質素監測站類別',
+        facilityType: '設施類別',
+        openHours: '開放時間',
+        district: '地區',
+        /* 以下欄位標籤與單位沿用環保署官方 CSV 的表頭原文 */
+        stationCode: '監測站編號',
+        samplingDate: '樣本日期',
+        dissolvedOxygen: '溶解氧 (毫克/升)',
+        bod5: '五天生化需氧量 (毫克/升)',
+        permitType: '許可證類別',
+        permitNo: '許可證編號',
+        issueOn: '簽發日期',
+        validity: '有效期',
+        permitStatus: '現況（按有效期推算）',
+        permittee: '承辦商',
+        siteAddress: '工地地址'
+      },
+      legend: {
+        good: '良好',
+        fair: '一般',
+        poor: '欠佳',
+        veryPoor: '極差',
+        notOpen: '未開放',
+        high: '高',
+        medium: '中',
+        low: '低',
+        veryHigh: '甚高',
+        serious: '嚴重',
+        title: '圖例',
+        lnrsLine: '低噪音路面（已鋪設路段）',
+        l10Raster: 'L10 (1 小時) 噪音水平（2020，4 米高）',
+        l10Low: '較低',
+        l10High: '較高',
+        recycleGreenCat: '綠在區區回收網絡（回收環保站／回收便利點／回收流動點）',
+        recycleOtherCat: '其他公眾回收點',
+        marineStation: '海水水質監測站',
+        riverStation: '河溪水質監測站',
+        cnpGeneral: '一般建築工程',
+        cnpPiling: '撞擊式打樁工程'
+      },
+      ui: {
+        loading: '載入中…',
+        loadingLayer: '正在載入「{name}」…',
+        errorLayer: '「{name}」載入失敗，請稍後再試。',
+        errorHint: '載入失敗',
+        noSamplingDate: '官方數據集未提供採樣日期',
+        noSamplingNote: '注意：環保署「泳灘水質等級」數據集只公布最新等級，並無提供逐個泳灘的採樣日期。',
+        districtNote: '注意：泳灘數據集並無「地區」欄位，泳灘所屬地區按環保署官方泳灘名單對照標示。',
+        waterParamNote: '注意：數據集只提供溶解氧及五天生化需氧量的實測值，並無官方等級評級，因此地圖不設顏色分級。數值若顯示為「<」代表低於檢測限。',
+        cnpNote: '「現況」由官方「有效期」與今日日期推算，並非數據集原有欄位，僅供參考。',
+        permitActive: '生效中',
+        permitExpired: '已屆滿',
+        permitUpcoming: '未生效',
+        subTabsLabel: '水質數據子分頁',
+        tabsLabel: '數據圖層',
+        dataFetched: '資料擷取時間',
+        a2hs: '加到主畫面',
+        recycleAll: '全部回收點',
+        recycleGreen: '只顯示「綠在區區」回收網絡',
+        themeLight: '切換至淺色模式',
+        themeDark: '切換至深色模式',
+        langSwitch: '切換語言',
+        officialName: '官方數據集名稱'
+      }
+    },
+    en: {
+      title: 'Hong Kong Environmental Data Map',
+      tabs: {
+        air: 'Hong Kong Air Quality Monitoring Network',
+        water: 'Water Quality Data',
+        recycle: 'Green Community Recycling Points',
+        noise: 'Low Noise Road Surface',
+        cnp: 'Issued Construction Noise Permit'
+      },
+      /* Sub-tabs of the "Water Quality Data" tab (official dataset titles) */
+      subs: {
+        beach: 'Beach Water Quality Grading',
+        marine: 'Recent Marine Water Quality Data',
+        river: 'Recent River Water Quality Data'
+      },
+      datasetNames: {
+        airNetwork: 'Hong Kong Air Quality Monitoring Network',
+        aqhi: 'Current Air Quality Health Index',
+        beachGrading: 'Beach Water Quality Grading',
+        marineWater: 'Recent Marine Water Quality Data',
+        riverWater: 'Recent River Water Quality Data',
+        cnp: 'Issued Construction Noise Permit',
+        lnrs: 'Low Noise Road Surface',
+        l10_2020: 'L10 (1 hour) Noise Level at 4m Height in 2020',
+        industrial: 'Industrial Area (Contributing Factor)',
+        river: 'Past River Water Quality Data',
+        marine: 'Past Marine Water Quality Data',
+        habitat: 'Habitat Maps from EIA Reports',
+        recyclePoints: 'Recyclable Collection Points Data'
+      },
+      datasetDescriptions: {
+        airNetwork: 'The Hong Kong Air Quality Monitoring Network comprises general and roadside air quality monitoring stations which continuously monitor the pollutant levels in the atmosphere and at the roadside respectively.',
+        aqhi: 'Air Quality Health Index at various general and roadside air quality monitoring stations.',
+        beachGrading: 'Latest beach water quality grading (latest information will be updated within 48 hours after sample collection).',
+        marineWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) data at Marine Water Quality Monitoring stations.',
+        riverWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) data at downstream monitoring stations of major rivers.',
+        cnp: 'Construction noise permits issued under the Noise Control Ordinance, covering permit type, permit number, issue date, validity, permittee and site location.',
+        lnrs: 'Data showing the location of low noise road surface when producing noise maps.',
+        l10_2020: 'L10 (1 hour) noise level at 4m height during the busiest traffic hour in the 2020 noise map.',
+        industrial: 'Data showing the location of industrial areas (contributing factor) for determining the "Acceptable Noise Levels" under the Technical Memorandum of the Noise Control Ordinance.',
+        river: 'Spatial dataset on past river water quality data on the Common Spatial Data Infrastructure. Multiple file formats are available for download via API.',
+        marine: 'Spatial dataset on past marine water quality data on the Common Spatial Data Infrastructure. Multiple file formats are available for download via API.',
+        habitat: 'Habitat maps from approved Environmental Impact Assessment reports.'
+      },
+      popup: {
+        station: 'Monitoring Station',
+        aqhi: 'Air Quality Health Index',
+        riskLevel: 'Health Risk Level',
+        address: 'Address',
+        recycleType: 'Recyclable Types',
+        waterQuality: 'Water Quality',
+        sampleDate: 'Sample Date',
+        lastUpdate: 'Last Updated',
+        source: 'Source: Environmental Protection Department',
+        road: 'Road Name',
+        surfaceType: 'Surface Type',
+        stationType: 'Type of Air Quality Monitoring Station',
+        facilityType: 'Facility Type',
+        openHours: 'Opening Hours',
+        district: 'District',
+        /* Field labels and units follow the official EPD CSV headers verbatim */
+        stationCode: 'Station Code',
+        samplingDate: 'Sampling Date',
+        dissolvedOxygen: 'Dissolved Oxygen (mg/L)',
+        bod5: '5-day Biochemical Oxygen Demand (mg/L)',
+        permitType: 'Permit Type',
+        permitNo: 'Permit No.',
+        issueOn: 'Issue Date',
+        validity: 'Validity',
+        permitStatus: 'Status (derived from validity)',
+        permittee: 'Permittee',
+        siteAddress: 'Site Address'
+      },
+      legend: {
+        good: 'Good',
+        fair: 'Fair',
+        poor: 'Poor',
+        veryPoor: 'Very Poor',
+        notOpen: 'Not open',
+        high: 'High',
+        medium: 'Medium',
+        low: 'Low',
+        veryHigh: 'Very High',
+        serious: 'Serious',
+        title: 'Legend',
+        lnrsLine: 'Low Noise Road Surface (treated sections)',
+        l10Raster: 'L10 (1 hour) noise level (2020, 4m height)',
+        l10Low: 'Lower',
+        l10High: 'Higher',
+        recycleGreenCat: 'Green Community recycling network (Recycling Stations / Stores / Spots)',
+        recycleOtherCat: 'Other public collection points',
+        marineStation: 'Marine water quality monitoring station',
+        riverStation: 'River water quality monitoring station',
+        cnpGeneral: 'General Construction Works',
+        cnpPiling: 'Percussive Piling'
+      },
+      ui: {
+        loading: 'Loading…',
+        loadingLayer: 'Loading "{name}"…',
+        errorLayer: 'Failed to load "{name}". Please try again later.',
+        errorHint: 'Load failed',
+        noSamplingDate: 'Not provided by the official dataset',
+        noSamplingNote: 'Note: the EPD Beach Water Quality Grading dataset publishes only the latest grade; no per-beach sampling date is provided.',
+        districtNote: 'Note: the beach dataset has no "District" field; each beach\u2019s district is mapped from the official EPD beach list.',
+        waterParamNote: 'Note: the dataset publishes measured DO and BOD5 values only. There is no official grading, so no colour grading is applied. A value shown as "<" is below the detection limit.',
+        cnpNote: 'Status is derived by comparing the official validity period with today\u2019s date. It is not a field of the dataset and is for reference only.',
+        permitActive: 'In force',
+        permitExpired: 'Expired',
+        permitUpcoming: 'Not yet in force',
+        subTabsLabel: 'Water quality sub-tabs',
+        tabsLabel: 'Data layers',
+        dataFetched: 'Data retrieved at',
+        a2hs: 'Add to Home Screen',
+        recycleAll: 'All collection points',
+        recycleGreen: 'Show "Green Community" network only',
+        themeLight: 'Switch to light mode',
+        themeDark: 'Switch to dark mode',
+        langSwitch: 'Switch language',
+        officialName: 'Official dataset name'
+      }
+    }
+  };
+
+  /* ======================================================================
+     2. 資料來源（全部已驗證可跨網域直接存取）
+     ====================================================================== */
+  const CSDI_WFS = 'https://portal.csdi.gov.hk/server/services/common';
+  const wfsUrl = (ds, layer) =>
+    `${CSDI_WFS}/${ds}/MapServer/WFSServer?service=WFS&version=2.0.0&request=GetFeature` +
+    `&typeNames=${encodeURIComponent('csdi:' + layer)}&outputFormat=GeoJSON&srsName=EPSG:4326&count=20000`;
+  /* 註：CSDI 的 ArcGIS query 以 f=geojson 輸出時極不穩定（實測約 3–5/6 成功），
+     改用 f=json（Esri JSON，實測約 11/12），再於前端轉換為 GeoJSON。 */
+  const arcQuery = (ds, layer, fields) =>
+    `https://portal.csdi.gov.hk/server/rest/services/common/${ds}/MapServer/${layer}/query` +
+    `?where=1%3D1&outFields=${encodeURIComponent(fields)}&returnGeometry=true&outSR=4326&f=json`;
+
+  const DATA = {
+    air: {
+      // 香港空氣質素監測網絡（CSDI 空間數據集）
+      datasetKey: 'airNetwork',
+      url: wfsUrl('epd_rcd_1629267205214_40635', 'AQMN'),
+      cacheKey: '香港空氣質素監測網絡'
+    },
+    aqhi: {
+      // 現時空氣質素健康指數（DATA.GOV.HK 城市儀表板 API）
+      datasetKey: 'aqhi',
+      url: 'https://dashboard.data.gov.hk/api/aqhi-individual?format=json',
+      cacheKey: '現時空氣質素健康指數',
+      cacheTtl: 30 * 60 * 1000        // 指數每小時更新，快取 30 分鐘
+    },
+    beach: {
+      // 泳灘水質等級（CSDI 空間數據集）
+      datasetKey: 'beachGrading',
+      url: arcQuery('epd_rcd_1631501467099_56497', 0,
+        'OBJECTID,Beach,Beach_TC,Beach_SC,Beach_Gradings,Beach_Gradings_TC,Beach_Grading_SC,link,link_beach'),
+      arcgis: true,
+      cacheKey: '泳灘水質等級'
+    },
+    recycle: {
+      // 回收點數據資料（CSDI 空間數據集）— 分頁抓取全部
+      datasetKey: 'recyclePoints',
+      url: arcQuery('epd_rcd_1630899452408_9505', 0,
+        'cp_id,address_en,address_tc,waste_type,legend,district_id'),
+      arcgis: true,
+      pageSize: 3000,
+      cacheKey: '回收點數據資料'
+    },
+    lnrs: {
+      // 低噪音路面（CSDI 空間數據集）
+      datasetKey: 'lnrs',
+      url: wfsUrl('epd_rcd_1696984809000_78322', 'noise_lnrs'),
+      cacheKey: '低噪音路面'
+    },
+    marine: {
+      // 近期海水水質數據（CSDI 空間數據集）— 溶解氧及五天生化需氧量
+      datasetKey: 'marineWater',
+      url: arcQuery('epd_rcd_1630908628415_41776', 0,
+        'OBJECTID,A_Station,A_Station_Eng,A_Station_C,B_Sampling_Date,' +
+        'C_Dissolved_Oxygen_Eng,C_Dissolved_Oxygen_C,C_BOD5_Eng,C_BOD5_C,' +
+        'D_Link_Eng,D_Link_C,LATITUDE,LONGITUDE'),
+      arcgis: true,
+      cacheKey: '近期海水水質數據'
+    },
+    river: {
+      // 近期河溪水質數據（CSDI 空間數據集）— 溶解氧及五天生化需氧量
+      datasetKey: 'riverWater',
+      url: arcQuery('epd_rcd_1630908367921_10608', 0,
+        'OBJECTID,A_Station,A_Station_Eng,A_Station_C,B_Sampling_Date,' +
+        'C_Dissolved_Oxygen_Eng,C_Dissolved_Oxygen_C,C_BOD5_Eng,C_BOD5_C,' +
+        'D_Link_Eng,D_Link_C,Longitude,Latitude'),
+      arcgis: true,
+      cacheKey: '近期河溪水質數據'
+    },
+    cnp: {
+      // 已簽發的建築噪音許可證（CSDI 空間數據集）— 分頁抓取全部
+      datasetKey: 'cnp',
+      url: arcQuery('epd_rcd_1664940858993_72368', 0,
+        'OBJECTID,PERMIT_TYPE_ENG,PERMIT_TYPE_CHIN,PERMIT_NO,ISSUE_ON,VALIDITY,' +
+        'PERMITTEE_NAME_ENG,PERMITTEE_NAME_CHIN,SITE_ADDRESS_ENG,SITE_ADDRESS_CHIN,' +
+        'DISTRICT_ENG,DISTRICT_CHIN,URL,LAT,LONG'),
+      arcgis: true,
+      pageSize: 3000,
+      cacheKey: '已簽發的建築噪音許可證'
+    },
+    l10: {
+      // 2020 年高度為 4 米的 L10 (1 小時)噪音水平（CSDI 影像圖層）
+      datasetKey: 'l10_2020',
+      exportUrl: 'https://portal.csdi.gov.hk/server/rest/services/common/epd_rcd_1696985483224_32728/MapServer/export'
+    }
+  };
+
+  /* 底圖
+     註：原計劃的 CartoDB Dark Matter 現已要求 API key，
+     無 key 時會回傳帶「API KEY REQUIRED」浮水印的佔位圖，
+     因此深色模式改用 Esri World Dark Gray Base（同樣為 WGS84 / Web Mercator）。 */
+  const BASEMAP = {
+    light: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/basemap/WGS84/{z}/{x}/{y}.png',
+    labelTc: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/tc/WGS84/{z}/{x}/{y}.png',
+    labelEn: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/en/WGS84/{z}/{x}/{y}.png',
+    darkBase: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    darkRef: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+  };
+  const GOV_ATTR = '地圖資料：<a href="https://www.landsd.gov.hk/" target="_blank" rel="noopener">地政總署</a>';
+  const DARK_ATTR = '地圖資料：Esri、HERE、Garmin、© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 貢獻者';
+
+  /* ======================================================================
+     3. 全域狀態
+     ====================================================================== */
+  const HK_CENTER = [22.35, 114.15];
+  const STORAGE = { theme: 'hk-env-map-theme', lang: 'hk-env-map-lang' };
+  const CACHE_TTL = 24 * 60 * 60 * 1000;      // 24 小時
+  const CLUSTER_THRESHOLD = 500;              // 超過 500 點自動聚合
+  const DEBOUNCE_MS = 200;
+
+  const TABS = [
+    { id: 'air',     icon: '🌬️' },
+    /* 「水質數據」分頁下有三個子分頁，各自是一個獨立圖層 */
+    { id: 'water',   icon: '💧', subs: ['beach', 'marine', 'river'] },
+    { id: 'recycle', icon: '♻️' },
+    { id: 'noise',   icon: '🔇' },
+    { id: 'cnp',     icon: '🚧' }
+  ];
+
+  /* 「水質數據」分頁的子分頁（同時就是圖層 id） */
+  const WATER_SUBS = ['beach', 'marine', 'river'];
+
+  const state = {
+    lang: 'tc',
+    theme: 'light',
+    active: 'air',              // 目前分頁 id（＝TABS 的 id）
+    waterSub: 'beach',          // 「水質數據」分頁下選用的子分頁＝圖層 id
+    layers: { air: null, beach: null, marine: null, river: null, recycle: null, noise: null, cnp: null },
+    noiseSub: { lnrs: true, l10: false },
+    errors: {},
+    loaded: {},
+    loading: {},
+    meta: {},                 // 每個圖層的來源／更新時間
+    aqhi: null,
+    popupLayer: null
+  };
+
+  /* 分頁 → 圖層：水質數據分頁有三個子分頁，其餘分頁與圖層同名。
+     分頁 id 與圖層 id 分開之後，分頁只負責「選哪一組資料」，
+     圖層快取（layers／loaded／errors／loading）一律以圖層 id 為鍵。 */
+  function activeLayerId() {
+    return state.active === 'water' ? state.waterSub : state.active;
+  }
+  /* 圖層 → 所屬分頁（載入中／錯誤指示要標在主分頁上） */
+  function tabOfLayer(id) {
+    return WATER_SUBS.indexOf(id) >= 0 ? 'water' : id;
+  }
+
+  let map, basemapLayer, labelLayer, l10Layer, activeLayer = null;
+  let legendTouched = false;     // 使用者是否手動展開／收合過圖例
+  const layers = state.layers;   // 規格要求：圖層存於全域 layers 物件
+
+  /* ======================================================================
+     4. 小工具
+     ====================================================================== */
+  const $ = (sel) => document.querySelector(sel);
+
+  function t(path) {
+    const parts = String(path).split('.');
+    let node = i18n[state.lang];
+    for (const p of parts) {
+      if (node == null) return '';
+      node = node[p];
+    }
+    return node == null ? '' : node;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function fmtDateTime(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  function fmtDate(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  function debounce(fn, ms) {
+    let timer = null;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), ms);
+    };
+  }
+
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove('show'), 5000);
+  }
+
+  /* ======================================================================
+     5. 24 小時 localStorage 數據緩存
+     ====================================================================== */
+  const cache = {
+    get(key, ttl) {
+      try {
+        const raw = localStorage.getItem('hk-env-cache:' + key);
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        if (!obj || typeof obj.ts !== 'number') return null;
+        if (Date.now() - obj.ts > (ttl || CACHE_TTL)) {
+          localStorage.removeItem('hk-env-cache:' + key);
+          return null;
+        }
+        return obj.data;
+      } catch (e) { return null; }
+    },
+    set(key, data) {
+      try {
+        localStorage.setItem('hk-env-cache:' + key,
+          JSON.stringify({ ts: Date.now(), data: data }));
+        return true;
+      } catch (e) {
+        // 超出配額：清掉舊快取後重試一次，仍失敗則放棄（不影響功能）
+        try {
+          Object.keys(localStorage)
+            .filter((k) => k.indexOf('hk-env-cache:') === 0)
+            .forEach((k) => localStorage.removeItem(k));
+          localStorage.setItem('hk-env-cache:' + key,
+            JSON.stringify({ ts: Date.now(), data: data }));
+          return true;
+        } catch (e2) {
+          console.warn('[cache] 無法寫入 localStorage（可能超出配額），已略過快取：', key);
+          return false;
+        }
+      }
+    }
+  };
+
+  /* ======================================================================
+     6. 資料抓取
+     ====================================================================== */
+  /* CSDI 的 ArcGIS 服務由多台後端負載平衡，實測同一請求約有 20–30% 機會
+     回傳 404 或 HTTP 200 + 錯誤主體（例如「Service ... not found」）。
+     因此對這類暫時性錯誤加入指數退避重試。 */
+  function NetError(message, retriable) {
+    const e = new Error(message);
+    e.retriable = !!retriable;
+    return e;
+  }
+
+  async function fetchJson(url, tries) {
+    const maxTries = tries || 6;
+    let lastErr;
+    for (let i = 0; i < maxTries; i++) {
+      try {
+        return await fetchJsonOnce(url);
+      } catch (e) {
+        lastErr = e;
+        if (!e.retriable || i === maxTries - 1) throw e;
+        await new Promise((r) => setTimeout(r, 300 * Math.pow(1.8, i)));
+      }
+    }
+    throw lastErr;
+  }
+
+  async function fetchJsonOnce(url) {
+    let res;
+    try {
+      res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+    } catch (e) {
+      throw NetError('網絡錯誤：' + (e && e.message ? e.message : e), true);
+    }
+    if (!res.ok) {
+      const retriable = res.status === 404 || res.status === 408 || res.status === 425 ||
+        res.status === 429 || res.status >= 500;
+      throw NetError('HTTP ' + res.status, retriable);
+    }
+    const text = await res.text();
+    const trimmed = text.trimStart();
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) {
+      throw NetError('回應不是 JSON（可能被閘道攔截）', true);
+    }
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e) { throw NetError('JSON 解析失敗', true); }
+
+    // ArcGIS / 政府 API 的錯誤會以 HTTP 200 + JSON 錯誤主體回傳，
+    // 必須明確攔截，否則會靜默地變成「0 筆」這種看似正常的錯誤結果。
+    if (data && data.error) {
+      const msg = (data.error && (data.error.message || data.error.details)) || '服務回報錯誤';
+      const transient = /not found|timeout|unavailable|busy|try again|overloaded/i.test(String(msg));
+      throw NetError('API 錯誤：' + msg, transient);
+    }
+    return data;
+  }
+
+  /* Esri JSON → GeoJSON（ArcGIS query 使用 f=json 輸出） */
+  function esriToGeoJson(esri) {
+    if (!esri || !Array.isArray(esri.features)) {
+      throw NetError('API 錯誤：回應缺少 features 陣列', true);
+    }
+    const features = esri.features.map((f) => {
+      const a = f.attributes || {};
+      const g = f.geometry;
+      let geometry = null;
+      if (g) {
+        if (typeof g.x === 'number' && typeof g.y === 'number') {
+          geometry = { type: 'Point', coordinates: [g.x, g.y] };
+        } else if (Array.isArray(g.paths)) {
+          geometry = g.paths.length === 1
+            ? { type: 'LineString', coordinates: g.paths[0] }
+            : { type: 'MultiLineString', coordinates: g.paths };
+        } else if (Array.isArray(g.rings)) {
+          geometry = { type: 'Polygon', coordinates: g.rings };
+        }
+      }
+      return { type: 'Feature', geometry: geometry, properties: a };
+    });
+    return { type: 'FeatureCollection', features: features };
+  }
+
+  /* ArcGIS 圖層取得（必要時分頁；Esri JSON 轉 GeoJSON） */
+  async function fetchArcLayer(cfg) {
+    const pageSize = cfg.pageSize || 3000;
+    const out = [];
+    let offset = 0;
+    for (let guard = 0; guard < 40; guard++) {
+      const url = cfg.url + `&resultOffset=${offset}&resultRecordCount=${pageSize}`;
+      const esri = await fetchJson(url);
+      const fc = esriToGeoJson(esri);
+      out.push(...fc.features);
+      const more = esri.exceededTransferLimit === true && fc.features.length >= pageSize;
+      if (!more) break;
+      offset += pageSize;
+    }
+    return { type: 'FeatureCollection', features: out };
+  }
+
+  /* 帶快取的 JSON 取得（供 AQHI 等非 GeoJSON 資料使用） */
+  async function getCachedJson(cacheKey, url, ttl) {
+    let data = cache.get(cacheKey, ttl);
+    let fromCache = !!data;
+    if (!data) {
+      data = await fetchJson(url);
+      cache.set(cacheKey, data);
+    }
+    console.log(`[效能] ${cacheKey}：${Array.isArray(data) ? data.length : '—'} 筆` +
+      `${fromCache ? '（來自快取）' : '（網絡請求）'}`);
+    return data;
+  }
+
+  /* 帶快取的圖層資料取得 */
+  async function getLayerData(id) {
+    const cfg = DATA[id];
+    const started = performance.now();
+    let data = cfg.cacheKey ? cache.get(cfg.cacheKey, cfg.cacheTtl) : null;
+    let fromCache = !!data;
+
+    if (!data) {
+      data = cfg.arcgis ? await fetchArcLayer(cfg) : await fetchJson(cfg.url);
+      if (cfg.cacheKey && data.features && data.features.length) cache.set(cfg.cacheKey, data);
+    }
+    const ms = Math.round(performance.now() - started);
+    console.log(`[效能] ${t('datasetNames.' + cfg.datasetKey)}：${data.features ? data.features.length : '—'} 筆，` +
+      `${ms} ms${fromCache ? '（來自 24 小時快取）' : '（網絡請求）'}`);
+    return data;
+  }
+
+  /* ======================================================================
+     7. AQHI 對照
+     ====================================================================== */
+  /* 監測站名稱對照：AQMN 的 Facility_Name → AQHI 數據的 station
+     （兩個來源的識別碼不同，必須明確對照，不可直接互相代入） */
+  function stationKey(facilityName) {
+    return String(facilityName || '')
+      .replace(/\s*Air Quality Monitoring Station\s*$/i, '')
+      .trim();
+  }
+
+  /* 空氣質素健康指數 → 健康風險級別（官方五級：低、中、高、甚高、嚴重） */
+  function riskLevelOf(aqhi) {
+    const v = Number(aqhi);
+    if (!isFinite(v)) return null;
+    if (v >= 11) return 'serious';    // 10+
+    if (v >= 8) return 'veryHigh';    // 8–10
+    if (v >= 7) return 'high';        // 7
+    if (v >= 4) return 'moderate';    // 4–6
+    return 'low';                     // 1–3
+  }
+
+  /* AQHI 數值 → 顏色級別（1-3 綠 / 4-6 黃 / 7 橙 / 8-10 紅 / 10+ 深紅） */
+  function aqhiClass(aqhi) {
+    const v = Number(aqhi);
+    if (!isFinite(v)) return 'aqhi-1';
+    if (v >= 11) return 'aqhi-5';
+    if (v >= 8) return 'aqhi-4';
+    if (v >= 7) return 'aqhi-3';
+    if (v >= 4) return 'aqhi-2';
+    return 'aqhi-1';
+  }
+  const AQHI_COLOR = { 'aqhi-1': '#009e49', 'aqhi-2': '#f2c200', 'aqhi-3': '#f28c00', 'aqhi-4': '#e02020', 'aqhi-5': '#8b0000' };
+  const RISK_KEY = { low: 'low', moderate: 'medium', high: 'high', veryHigh: 'veryHigh', serious: 'serious' };
+
+  /* ---- 泳灘水質等級 ----
+     官方 EPD「最新泳灘水質等級」圖例用色：1 淺青、2 亮綠、3 琥珀、4 紅。
+     注意等級 1 並非綠色而是淺青（官方慣例），故以明確對照表釘死色碼，
+     不按「好＝綠、差＝紅」自行推導。圖例色塊、Popup 徽章與地圖標記共用
+     此表，避免三者各自漂移；未開放／未評級＝中性灰。 */
+  function beachGrade(p) {
+    const src = String(p.Beach_Gradings_TC || p.Beach_Grading_SC || p.Beach_Gradings || '');
+    const m = src.match(/(\d)/);
+    const n = m ? Number(m[1]) : null;
+    return n && BEACH_COLOR[n] ? n : null;
+  }
+  const BEACH_COLOR = { 1: '#7CE7F0', 2: '#4CE84C', 3: '#F5C33B', 4: '#F0433D' };
+  /* 淺色底（1／2／3 級）需配深色字，4 級紅底用白字 */
+  const BEACH_TEXT = { 1: '#06323a', 2: '#0b3d0b', 3: '#4a3400', 4: '#ffffff' };
+  const BEACH_CLOSED_COLOR = '#9AA7B0';
+  const BEACH_CLOSED_TEXT = '#1f2a30';
+  const BEACH_LEGEND_KEY = { 1: 'good', 2: 'fair', 3: 'poor', 4: 'veryPoor' };
+
+  /* ---- 泳灘 → 地區 ----
+     CSDI 泳灘數據集只有泳灘名稱與等級，並無「地區」欄位，因此地區須由對照表
+     提供。下表按環保署官方泳灘名單分區（屯門 6／荃灣 8／離島 10／大埔 1／
+     西貢 6／南區 12，共 43 個）；已核對數據集實際發布的 40 個泳灘 100% 命中，
+     而 Hairpin Beach、Rocky Bay Beach、Gemini Beaches 三個不在數據集內。
+     注意：數據集有 3 個名稱帶尾隨空白（Anglers' Beach、Cheung Chau Tung Wan
+     Beach、Trio Beach），故查表前必須先 trim，否則會靜默查不到地區。 */
+  const BEACH_DISTRICT = {
+    // Southern District — 南區
+    'Big Wave Bay Beach': 'Southern District',
+    'Chung Hom Kok Beach': 'Southern District',
+    'Deep Water Bay Beach': 'Southern District',
+    'Hairpin Beach': 'Southern District',
+    'Middle Bay Beach': 'Southern District',
+    'Repulse Bay Beach': 'Southern District',
+    'Rocky Bay Beach': 'Southern District',
+    'Shek O Beach': 'Southern District',
+    'South Bay Beach': 'Southern District',
+    "St. Stephen's Beach": 'Southern District',
+    'Stanley Main Beach': 'Southern District',
+    'Turtle Cove Beach': 'Southern District',
+    // Tsuen Wan District — 荃灣區
+    "Anglers' Beach": 'Tsuen Wan District',
+    'Approach Beach': 'Tsuen Wan District',
+    'Casam Beach': 'Tsuen Wan District',
+    'Gemini Beaches': 'Tsuen Wan District',
+    'Hoi Mei Wan Beach': 'Tsuen Wan District',
+    'Lido Beach': 'Tsuen Wan District',
+    'Ma Wan Tung Wan Beach': 'Tsuen Wan District',
+    'Ting Kau Beach': 'Tsuen Wan District',
+    // Tuen Mun District — 屯門區
+    'Butterfly Beach': 'Tuen Mun District',
+    'Cafeteria New Beach': 'Tuen Mun District',
+    'Cafeteria Old Beach': 'Tuen Mun District',
+    'Castle Peak Beach': 'Tuen Mun District',
+    'Golden Beach': 'Tuen Mun District',
+    'Kadoorie Beach': 'Tuen Mun District',
+    // Sai Kung District — 西貢區
+    'Clear Water Bay First Beach': 'Sai Kung District',
+    'Clear Water Bay Second Beach': 'Sai Kung District',
+    'Hap Mun Bay Beach': 'Sai Kung District',
+    'Kiu Tsui Beach': 'Sai Kung District',
+    'Silverstrand Beach': 'Sai Kung District',
+    'Trio Beach': 'Sai Kung District',
+    // Islands District — 離島區
+    'Cheung Chau Tung Wan Beach': 'Islands District',
+    'Discovery Bay Tai Pak Beach': 'Islands District',
+    'Hung Shing Yeh Beach': 'Islands District',
+    'Kwun Yam Beach': 'Islands District',
+    'Lo So Shing Beach': 'Islands District',
+    'Lower Cheung Sha Beach': 'Islands District',
+    'Pui O Beach': 'Islands District',
+    'Silver Mine Bay Beach': 'Islands District',
+    'Tong Fuk Beach': 'Islands District',
+    'Upper Cheung Sha Beach': 'Islands District',
+    // Tai Po District — 大埔區
+    'Tai Po Lung Mei Beach': 'Tai Po District'
+  };
+  const DISTRICT_TC = {
+    'Southern District': '南區',
+    'Tsuen Wan District': '荃灣區',
+    'Tuen Mun District': '屯門區',
+    'Tai Po District': '大埔區',
+    'Sai Kung District': '西貢區',
+    'Islands District': '離島區'
+  };
+  /* 數據集無地區欄位 → 以英文泳灘名查表；名稱務必先 trim。 */
+  function beachDistrict(p) {
+    return BEACH_DISTRICT[String(p.Beach || '').trim()] || null;
+  }
+  /* 地區名按語言顯示；查不到時回退原文，不會變空白。 */
+  function districtLabel(d) {
+    if (!d) return '';
+    return state.lang === 'tc' ? (DISTRICT_TC[d] || d) : d;
+  }
+
+  /* ---- 近期海水／河溪水質數據 ----
+     數據集只提供溶解氧（DO）及五天生化需氧量（BOD5）的實測值，並沒有官方等級
+     評級（河溪水質指數 RWCZI 等並不在此數據集內），因此地圖上每個監測站只用
+     單一顏色標示，不按數值自行分級 —— 憑空訂門檻等同偽造官方評級。
+     另注意數值可能是「<0.1」這種低於檢測限的字串，必須原樣顯示，不可強轉數字。 */
+  const WATER_COLOR = { marine: '#1565c0', river: '#00838f' };
+  const WATER_GLYPH = { marine: '🌊', river: '💧' };
+
+  function waterStationName(p) {
+    return state.lang === 'tc'
+      ? (p.A_Station_C || p.A_Station_Eng || p.A_Station)
+      : (p.A_Station_Eng || p.A_Station_C || p.A_Station);
+  }
+  /* which: 'do' | 'bod'。回傳原樣字串（可能是「<0.1」），無值回傳 null。 */
+  function waterValue(p, which) {
+    const en = which === 'do' ? p.C_Dissolved_Oxygen_Eng : p.C_BOD5_Eng;
+    const tc = which === 'do' ? p.C_Dissolved_Oxygen_C : p.C_BOD5_C;
+    const v = state.lang === 'tc' ? (tc || en) : (en || tc);
+    return v == null || String(v).trim() === '' ? null : String(v).trim();
+  }
+  function waterLink(p) {
+    return state.lang === 'tc' ? (p.D_Link_C || p.D_Link_Eng) : (p.D_Link_Eng || p.D_Link_C);
+  }
+
+  /* ---- 已簽發的建築噪音許可證 ----
+     許可證類別以官方英文值作鍵（穩定），中文標籤用官方中文值。
+     顏色只區分「類別」，不是評級；撞擊式打樁工程用較重的紅色，
+     因為它是《噪音管制條例》下受更嚴格管制的工程類別。 */
+  const CNP_TYPE_TC = {
+    'General Construction Works': '一般建築工程',
+    'Percussive Piling': '撞擊式打樁工程'
+  };
+  const CNP_COLOR = {
+    'General Construction Works': '#f28c00',
+    'Percussive Piling': '#c62828'
+  };
+  const CNP_TEXT = {
+    'General Construction Works': '#3a2f00',
+    'Percussive Piling': '#ffffff'
+  };
+  const CNP_COLOR_FALLBACK = '#6d4c41';
+  /* 許可證類別 → 目前語言標籤。
+     eng 為官方英文值（對照表鍵），chin 為資料本身的官方中文值。
+     未知類別回退官方原文，不會變空白。 */
+  function cnpTypeLabel(eng, chin) {
+    if (state.lang !== 'tc') return eng || chin || '';
+    return CNP_TYPE_TC[eng] || chin || eng || '';
+  }
+  function cnpColor(eng) {
+    return CNP_COLOR[eng] || CNP_COLOR_FALLBACK;
+  }
+  /* 「現況」由官方 VALIDITY（"YYYY-MM-DD - YYYY-MM-DD"）與今日日期推算。
+     這不是數據集原有欄位，UI 上必須標明是推算值。 */
+  const CNP_STATUS_KEY = { active: 'permitActive', expired: 'permitExpired', upcoming: 'permitUpcoming' };
+  function cnpStatus(p) {
+    const m = String(p.VALIDITY || '').match(/(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/);
+    if (!m) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const start = new Date(m[1] + 'T00:00:00');
+    const end = new Date(m[2] + 'T23:59:59');
+    if (isNaN(start) || isNaN(end)) return null;
+    if (today < start) return 'upcoming';
+    if (today > end) return 'expired';
+    return 'active';
+  }
+
+  /* 低噪音路面材質 → 顯示文字（官方欄位 materials 原值） */
+  const MATERIAL_LABEL = { PMFC: 'PMFC', PMSMA6: 'PMSMA6', CRSMA6: 'CRSMA6' };
+
+  /* 回收點設施類別（官方 legend 欄位原值）→ 中文 */
+  const RECYCLE_CAT_TC = {
+    'Recycling Bins at Public Place': '公眾地方回收箱',
+    'Private Collection Points (e.g. housing estates, shopping centres)': '私人回收點（例如屋苑、商場）',
+    'Smart Bin': '智能回收箱',
+    'Recycling Spots': '回收流動點',
+    'Street Corner Recycling Shops': '街角回收店',
+    'Recycling Stations/Recycling Stores': '回收環保站／回收便利點',
+    'NGO Collection Points': '非政府機構回收點'
+  };
+  /* 「綠在區區」回收網絡所屬的設施類別 */
+  const GREEN_COMMUNITY_CATS = [
+    'Recycling Stations/Recycling Stores',
+    'Street Corner Recycling Shops',
+    'Recycling Spots'
+  ];
+
+  /* ======================================================================
+     8. 標記圖示
+     ====================================================================== */
+  function pinIcon(color, glyph) {
+    return L.divIcon({
+      className: '',
+      html: `<div class="pin" style="background:${color}"><span>${glyph}</span></div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 22],
+      popupAnchor: [0, -22]
+    });
+  }
+
+  /* ======================================================================
+     9. Popup 內容
+     ====================================================================== */
+  function popupShell(title, descHtml, rowsHtml, footExtra) {
+    return `<div class="custom-popup">
+      ${descHtml || ''}
+      <h3 class="cp-title">${esc(title)}</h3>
+      <div class="cp-body">
+        ${rowsHtml}
+        <div class="cp-foot">
+          ${esc(t('popup.source'))}${footExtra ? ' | ' + footExtra : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function row(label, valueHtml) {
+    return `<div class="cp-row"><span class="cp-label">${esc(label)}</span><span class="cp-value">${valueHtml}</span></div>`;
+  }
+
+  /* ---- 空氣質素 Popup ---- */
+  function airPopup(p, aqhi) {
+    const name = state.lang === 'tc' ? (p['設施名稱'] || p.Facility_Name) : (p.Facility_Name || p['設施名稱']);
+    const addr = state.lang === 'tc' ? (p['地址'] || p.Address) : (p.Address || p['地址']);
+    const stype = state.lang === 'tc' ? (p['空氣質素監測站類別'] || p.Types_of_Air_Quality_Monitoring_Station)
+                                      : (p.Types_of_Air_Quality_Monitoring_Station || p['空氣質素監測站類別']);
+    let rows = '';
+    if (addr) rows += row(t('popup.address'), `<span class="cp-address">${esc(addr)}</span>`);
+    if (stype) rows += row(t('popup.stationType'), esc(stype));
+
+    if (aqhi) {
+      const cls = aqhiClass(aqhi.aqhi);
+      const riskKey = riskLevelOf(aqhi.aqhi);
+      rows = row(t('popup.aqhi'), `<span class="badge ${cls}">${esc(aqhi.aqhi)}</span>`) +
+        row(t('popup.riskLevel'), `<span class="badge ${cls}">${esc(t('legend.' + RISK_KEY[riskKey]))}</span>`) +
+        rows +
+        row(t('popup.lastUpdate'), esc(String(aqhi.publish_date).replace('T', ' ').slice(0, 16)));
+    }
+    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.airNetwork'))}</p>`;
+    return popupShell(name || '—', desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.air || fmtDateTime(new Date())));
+  }
+
+  /* ---- 泳灘 Popup ---- */
+  function beachPopup(p) {
+    const isTc = state.lang === 'tc';
+    // 名稱／等級優先用官方中文原文（數據集本身就有 Beach_TC，非自行翻譯）
+    const name = isTc ? (p.Beach_TC || p.Beach) : (p.Beach || p.Beach_TC);
+    const gradeRaw = isTc ? (p.Beach_Gradings_TC || p.Beach_Gradings)
+                          : (p.Beach_Gradings || p.Beach_Gradings_TC);
+    const g = beachGrade(p);
+    const color = g ? BEACH_COLOR[g] : BEACH_CLOSED_COLOR;
+    const textColor = g ? BEACH_TEXT[g] : BEACH_CLOSED_TEXT;
+    const gradeLabel = g ? t('legend.' + BEACH_LEGEND_KEY[g]) : t('legend.notOpen');
+    // 色碼以 inline style 套用 → 徽章、圖例色塊、地圖標記共用同一份 BEACH_COLOR
+    const badge = `<span class="badge" style="background:${color};color:${textColor}">${esc(gradeLabel)}</span>`;
+    let rows = '';
+    // 地區：數據集並無此欄位，由對照表提供（詳見 BEACH_DISTRICT 註解）
+    const dist = beachDistrict(p);
+    if (dist) rows += row(t('popup.district'), esc(districtLabel(dist)));
+    rows += row(t('popup.waterQuality'),
+      badge + ' <span class="cp-sub">' + esc(gradeRaw || '—') + '</span>');
+    // 官方數據集沒有採樣日期 → 誠實標示，不憑空生成
+    rows += row(t('popup.sampleDate'), `<span class="cp-sub">${esc(t('ui.noSamplingDate'))}</span>`);
+    rows += row(t('ui.dataFetched'), esc(state.meta.beach || fmtDateTime(new Date())));
+    const link = p.link_beach
+      ? `<a href="${esc(p.link_beach)}" target="_blank" rel="noopener">EPD 泳灘水質報告</a>`
+      : '';
+    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.beachGrading'))}</p>`;
+    return popupShell(name || '—', desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.beach || fmtDateTime(new Date())) +
+      (link ? ' | ' + link : ''));
+  }
+
+  /* ---- 近期海水／河溪水質數據 Popup ---- */
+  function waterPopup(p, kind) {
+    const name = waterStationName(p);
+    const doVal = waterValue(p, 'do');
+    const bodVal = waterValue(p, 'bod');
+    let rows = '';
+    if (p.A_Station) rows += row(t('popup.stationCode'), esc(String(p.A_Station).trim()));
+    if (p.B_Sampling_Date) rows += row(t('popup.samplingDate'), esc(String(p.B_Sampling_Date).trim()));
+    /* 標籤已含官方單位（毫克/升），故只顯示原值 */
+    rows += row(t('popup.dissolvedOxygen'),
+      doVal == null ? '—' : `<span class="badge badge-param">${esc(doVal)}</span>`);
+    rows += row(t('popup.bod5'),
+      bodVal == null ? '—' : `<span class="badge badge-param">${esc(bodVal)}</span>`);
+    rows += row(t('ui.dataFetched'), esc(state.meta[kind] || fmtDateTime(new Date())));
+    const link = waterLink(p);
+    const linkHtml = link
+      ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(t('datasetNames.' + DATA[kind].datasetKey))}</a>`
+      : '';
+    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.' + DATA[kind].datasetKey))}</p>`;
+    return popupShell(name || '—', desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta[kind] || fmtDateTime(new Date())) +
+      (linkHtml ? ' | ' + linkHtml : ''));
+  }
+
+  /* ---- 已簽發的建築噪音許可證 Popup ---- */
+  function cnpPopup(p) {
+    const isTc = state.lang === 'tc';
+    const typeEng = String(p.PERMIT_TYPE_ENG || '').trim();
+    const type = cnpTypeLabel(typeEng, String(p.PERMIT_TYPE_CHIN || '').trim());
+    const permittee = isTc ? (p.PERMITTEE_NAME_CHIN || p.PERMITTEE_NAME_ENG)
+                           : (p.PERMITTEE_NAME_ENG || p.PERMITTEE_NAME_CHIN);
+    const addr = isTc ? (p.SITE_ADDRESS_CHIN || p.SITE_ADDRESS_ENG)
+                      : (p.SITE_ADDRESS_ENG || p.SITE_ADDRESS_CHIN);
+    const dist = isTc ? (p.DISTRICT_CHIN || p.DISTRICT_ENG)
+                      : (p.DISTRICT_ENG || p.DISTRICT_CHIN);
+    const color = cnpColor(typeEng);
+    const textColor = CNP_TEXT[typeEng] || '#ffffff';
+    let rows = '';
+    if (type) {
+      rows += row(t('popup.permitType'),
+        `<span class="badge" style="background:${color};color:${textColor}">${esc(type)}</span>`);
+    }
+    if (p.PERMIT_NO) rows += row(t('popup.permitNo'), esc(String(p.PERMIT_NO).trim()));
+    if (p.ISSUE_ON) rows += row(t('popup.issueOn'), esc(String(p.ISSUE_ON).slice(0, 10)));
+    if (p.VALIDITY) rows += row(t('popup.validity'), esc(String(p.VALIDITY).trim()));
+    const st = cnpStatus(p);
+    if (st) rows += row(t('popup.permitStatus'), `<span class="cp-sub">${esc(t('ui.' + CNP_STATUS_KEY[st]))}</span>`);
+    if (permittee) rows += row(t('popup.permittee'), esc(permittee));
+    if (addr) rows += row(t('popup.siteAddress'), `<span class="cp-address">${esc(addr)}</span>`);
+    if (dist) rows += row(t('popup.district'), esc(dist));
+    rows += row(t('ui.dataFetched'), esc(state.meta.cnp || fmtDateTime(new Date())));
+    const link = p.URL
+      ? `<a href="${esc(p.URL)}" target="_blank" rel="noopener">${esc(t('datasetNames.cnp'))}</a>`
+      : '';
+    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.cnp'))}</p>`;
+    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.cnp || fmtDateTime(new Date())) +
+      (link ? ' | ' + link : ''));
+  }
+
+  /* ---- 回收點 Popup ---- */
+  function recyclePopup(p) {
+    const isTc = state.lang === 'tc';
+    const addr = isTc ? (p.address_tc || p.address_en) : (p.address_en || p.address_tc);
+    const cat = p.legend ? (isTc ? (RECYCLE_CAT_TC[p.legend] || p.legend) : p.legend) : '';
+    let rows = row(t('popup.address'), `<span class="cp-address">${esc(addr || '—')}</span>`);
+    if (cat) rows += row(t('popup.facilityType'), esc(cat));
+    if (p.waste_type) rows += row(t('popup.recycleType'), esc(p.waste_type));
+    if (p.district_id) rows += row(t('popup.district'), esc(String(p.district_id).replace(/_/g, ' ')));
+    const desc = `<p class="cp-desc">${esc(t('datasetNames.recyclePoints'))} · ${esc(t('ui.officialName'))}</p>`;
+    return popupShell(addr || t('datasetNames.recyclePoints'), desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.recycle || fmtDateTime(new Date())));
+  }
+
+  /* ---- 低噪音路面 Popup ---- */
+  function lnrsPopup(p) {
+    const road = p.road || '—';
+    let rows = row(t('popup.road'), esc(road));
+    if (p.materials) rows += row(t('popup.surfaceType'), esc(MATERIAL_LABEL[p.materials] || p.materials));
+    if (p.SHAPE_Length != null) rows += row('SHAPE_Length', esc(Number(p.SHAPE_Length).toFixed(1)));
+    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.lnrs'))}</p>`;
+    return popupShell(t('datasetNames.lnrs'), desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.lnrs || fmtDateTime(new Date())));
+  }
+
+  /* ======================================================================
+     10. 圖層建立
+     ====================================================================== */
+  function clusterIfNeeded(layer, count) {
+    if (count > CLUSTER_THRESHOLD) {
+      console.log(`[效能] ${count} 個要素 > ${CLUSTER_THRESHOLD}，啟用 markercluster 聚合`);
+    }
+    return layer;
+  }
+
+  function makeClusterGroup() {
+    return L.markerClusterGroup({
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true,
+      chunkedLoading: true,
+      chunkInterval: 200,
+      maxClusterRadius: 55,
+      disableClusteringAtZoom: 16,
+      iconCreateFunction: function (cluster) {
+        const n = cluster.getChildCount();
+        const size = n < 10 ? 'small' : (n < 100 ? 'medium' : 'large');
+        return L.divIcon({
+          html: `<div><span>${n}</span></div>`,
+          className: 'marker-cluster marker-cluster-' + size,
+          iconSize: L.point(40, 40)
+        });
+      }
+    });
+  }
+
+  /* ---- 空氣質素圖層（API + 空間關聯） ---- */
+  async function loadAirLayer() {
+    const [geo, aqhiList] = await Promise.all([
+      getLayerData('air'),
+      getCachedJson(DATA.aqhi.cacheKey, DATA.aqhi.url, DATA.aqhi.cacheTtl).catch((e) => {
+        console.warn('[空氣] AQHI 數據取得失敗，只顯示監測站位置：', e);
+        return null;
+      })
+    ]);
+
+    const byKey = {};
+    if (Array.isArray(aqhiList)) {
+      aqhiList.forEach((a) => { byKey[String(a.station).trim()] = a; });
+      state.aqhi = aqhiList;
+    }
+
+    // 對照檢查：確認每個監測站都能在 AQHI 資料中找到對應
+    const unmatched = [];
+    const group = makeClusterGroup();
+    let matched = 0;
+
+    const layer = L.geoJSON(geo, {
+      pointToMarker: true,
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        const key = stationKey(p.Facility_Name);
+        const a = byKey[key];
+        if (a) matched++; else unmatched.push(p.Facility_Name);
+        const aqhiVal = a ? a.aqhi : null;
+        const color = aqhiVal != null ? AQHI_COLOR[aqhiClass(aqhiVal)] : '#7f8c8d';
+        lyr.setIcon(pinIcon(color, '🌬'));
+        lyr.bindPopup(() => airPopup(p, a), { className: 'custom-popup-wrap', maxWidth: 300, autoPan: true, autoPanPadding: [30, 60] });
+        // 同上：tooltip 延遲求值，避免切換語言後殘留舊語言
+        lyr.bindTooltip(() => esc(state.lang === 'tc'
+          ? (p['設施名稱'] || p.Facility_Name)
+          : (p.Facility_Name || p['設施名稱'])), { direction: 'top', offset: [0, -20] });
+      },
+      filter: (f) => f.geometry && f.geometry.type === 'Point'
+    });
+
+    // 逐個加入 cluster group
+    layer.eachLayer((l) => group.addLayer(l));
+
+    if (unmatched.length) {
+      console.warn(`[空氣] 有 ${unmatched.length} 個監測站未能對應 AQHI 資料：`, unmatched);
+    } else if (Array.isArray(aqhiList)) {
+      console.log(`[空氣] AQHI 對照成功：${matched}/${layer.getLayers().length} 個監測站`);
+    }
+
+    state.meta.air = fmtDateTime(new Date());
+    return clusterIfNeeded(group, layer.getLayers().length);
+  }
+
+  /* ---- 泳灘水質圖層 ---- */
+  async function loadBeachLayer() {
+    const geo = await getLayerData('beach');
+    const group = makeClusterGroup();
+    const layer = L.geoJSON(geo, {
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        const g = beachGrade(p);
+        // 未評級／未開放 → 中性灰，不用灰色假裝成等級
+        lyr.setIcon(pinIcon(g ? BEACH_COLOR[g] : BEACH_CLOSED_COLOR, '🏖'));
+        lyr.bindPopup(() => beachPopup(p), { maxWidth: 300, autoPan: true, autoPanPadding: [30, 60] });
+        // tooltip 內容用函式延遲求值：applyLang 只重建「當前」圖層，非當前圖層
+        // 若在載入時就把語言寫死，切換語言後會殘留舊語言。
+        lyr.bindTooltip(() => {
+          const nm = state.lang === 'tc' ? (p.Beach_TC || p.Beach) : (p.Beach || p.Beach_TC);
+          const dist = districtLabel(beachDistrict(p));
+          return esc([String(nm || '').trim(), dist].filter(Boolean).join(' · '));
+        }, { direction: 'top', offset: [0, -20] });
+      },
+      filter: (f) => f.geometry && f.geometry.type === 'Point'
+    });
+    layer.eachLayer((l) => group.addLayer(l));
+    state.meta.beach = fmtDateTime(new Date());
+    return clusterIfNeeded(group, layer.getLayers().length);
+  }
+
+  /* ---- 近期海水／河溪水質數據圖層（監測站點） ---- */
+  async function loadWaterStationLayer(kind) {
+    const geo = await getLayerData(kind);
+    const group = makeClusterGroup();
+    const layer = L.geoJSON(geo, {
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        lyr.setIcon(pinIcon(WATER_COLOR[kind] || CNP_COLOR_FALLBACK, WATER_GLYPH[kind] || '💧'));
+        lyr.bindPopup(() => waterPopup(p, kind), { maxWidth: 300, autoPan: true, autoPanPadding: [30, 60] });
+        // tooltip 延遲求值，避免切換語言後殘留舊語言
+        lyr.bindTooltip(() => {
+          const nm = waterStationName(p);
+          const doVal = waterValue(p, 'do');
+          return esc([String(nm || '').trim(), doVal].filter(Boolean).join(' · '));
+        }, { direction: 'top', offset: [0, -20] });
+      },
+      filter: (f) => f.geometry && f.geometry.type === 'Point'
+    });
+    layer.eachLayer((l) => group.addLayer(l));
+    state.meta[kind] = fmtDateTime(new Date());
+    return clusterIfNeeded(group, layer.getLayers().length);
+  }
+  const loadMarineLayer = () => loadWaterStationLayer('marine');
+  const loadRiverLayer = () => loadWaterStationLayer('river');
+
+  /* ---- 已簽發的建築噪音許可證圖層 ---- */
+  async function loadCnpLayer() {
+    const geo = await getLayerData('cnp');
+    const group = makeClusterGroup();
+    const layer = L.geoJSON(geo, {
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        const typeEng = String(p.PERMIT_TYPE_ENG || '').trim();
+        lyr.setIcon(pinIcon(cnpColor(typeEng), '🚧'));
+        lyr.bindPopup(() => cnpPopup(p), { maxWidth: 320, autoPan: true, autoPanPadding: [30, 60] });
+        lyr.bindTooltip(() => {
+          const no = String(p.PERMIT_NO || '').trim();
+          const dist = state.lang === 'tc'
+            ? (p.DISTRICT_CHIN || p.DISTRICT_ENG) : (p.DISTRICT_ENG || p.DISTRICT_CHIN);
+          return esc([no, String(dist || '').trim()].filter(Boolean).join(' · '));
+        }, { direction: 'top', offset: [0, -20] });
+      },
+      filter: (f) => f.geometry && f.geometry.type === 'Point'
+    });
+    layer.eachLayer((l) => group.addLayer(l));
+    state.cnpBase = layer;
+    state.meta.cnp = fmtDateTime(new Date());
+    return clusterIfNeeded(group, layer.getLayers().length);
+  }
+
+  /* ---- 回收點圖層 ---- */
+  async function loadRecycleLayer() {
+    const geo = await getLayerData('recycle');
+    const group = makeClusterGroup();
+    const layer = L.geoJSON(geo, {
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        const cat = p.legend || '';
+        const color = GREEN_COMMUNITY_CATS.indexOf(cat) >= 0 ? '#0f9d58' : '#7cb342';
+        lyr.setIcon(pinIcon(color, '♻'));
+        lyr.bindPopup(() => recyclePopup(p), { maxWidth: 300, autoPan: true, autoPanPadding: [30, 60] });
+        // 同上：tooltip 延遲求值，避免切換語言後殘留舊語言
+        lyr.bindTooltip(() => {
+          const addr = state.lang === 'tc' ? (p.address_tc || p.address_en) : (p.address_en || p.address_tc);
+          return esc(String(addr || '').trim().slice(0, 60));
+        }, { direction: 'top', offset: [0, -20] });
+      },
+      filter: (f) => f.geometry && f.geometry.type === 'Point'
+    });
+    layer.eachLayer((l) => group.addLayer(l));
+    state.recycleBase = layer;      // 供「只顯示綠在區區」篩選
+    state.meta.recycle = fmtDateTime(new Date());
+    return clusterIfNeeded(group, layer.getLayers().length);
+  }
+
+  /* ---- 低噪音路面圖層（線）+ L10 影像（可選） ---- */
+  async function loadNoiseLayer() {
+    const geo = await getLayerData('lnrs');
+    const group = makeClusterGroup();
+    const layer = L.geoJSON(geo, {
+      style: () => ({ color: '#8e44ad', weight: 3, opacity: 0.7 }),
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        lyr.bindPopup(() => lnrsPopup(p), { maxWidth: 300, autoPan: true, autoPanPadding: [30, 60] });
+        if (p.road) lyr.bindTooltip(esc(p.road), { sticky: true });
+      }
+    });
+    // 線狀要素不使用聚合，直接回傳圖層群組
+    const wrapper = L.layerGroup([layer]);
+    wrapper._vectorLayer = layer;
+    state.meta.lnrs = fmtDateTime(new Date());
+    return wrapper;
+  }
+
+  /* L10 2020 影像圖層（ArcGIS export 逐格抓取） */
+  function buildL10Layer() {
+    const L10Grid = L.GridLayer.extend({
+      createTile: function (coords, done) {
+        const tile = document.createElement('img');
+        tile.alt = '';
+        tile.setAttribute('role', 'presentation');
+        const size = this.getTileSize();
+        const b = this._tileCoordsToBounds(coords);
+        const p1 = L.CRS.EPSG3857.project(b.getNorthWest());
+        const p2 = L.CRS.EPSG3857.project(b.getSouthEast());
+        const bbox = [p1.x, p2.y, p2.x, p1.y].map((v) => v.toFixed(1)).join(',');
+        const url = `${DATA.l10.exportUrl}?bbox=${bbox}&bboxSR=3857&imageSR=3857` +
+          `&size=${size.x},${size.y}&format=png32&transparent=true&f=image&dpi=96`;
+        tile.onload = () => done(null, tile);
+        tile.onerror = () => done(new Error('L10 tile'), tile);
+        tile.src = url;
+        return tile;
+      }
+    });
+    return new L10Grid({
+      opacity: 0.9, minZoom: 9, maxZoom: 19,
+      className: 'l10-tile',
+      attribution: '噪音地圖：環境保護署'
+    });
+  }
+
+  /* ======================================================================
+     11. 圖例
+     ====================================================================== */
+  const LEGEND_DEFS = {
+    air: () => ({
+      title: t('datasetNames.airNetwork'),
+      rows: [
+        { type: 'dot', color: AQHI_COLOR['aqhi-1'], label: `${t('legend.low')} (AQHI 1–3)` },
+        { type: 'dot', color: AQHI_COLOR['aqhi-2'], label: `${t('legend.medium')} (AQHI 4–6)` },
+        { type: 'dot', color: AQHI_COLOR['aqhi-3'], label: `${t('legend.high')} (AQHI 7)` },
+        { type: 'dot', color: AQHI_COLOR['aqhi-4'], label: `${t('legend.veryHigh')} (AQHI 8–10)` },
+        { type: 'dot', color: AQHI_COLOR['aqhi-5'], label: `${t('legend.serious')} (AQHI 10+)` }
+      ],
+      note: t('datasetDescriptions.airNetwork') + '<br><br>' + t('datasetDescriptions.aqhi')
+    }),
+    beach: () => ({
+      title: t('datasetNames.beachGrading'),
+      rows: [
+        { type: 'dot', color: BEACH_COLOR[1], label: `${t('legend.good')} (Grade 1)` },
+        { type: 'dot', color: BEACH_COLOR[2], label: `${t('legend.fair')} (Grade 2)` },
+        { type: 'dot', color: BEACH_COLOR[3], label: `${t('legend.poor')} (Grade 3)` },
+        { type: 'dot', color: BEACH_COLOR[4], label: `${t('legend.veryPoor')} (Grade 4)` },
+        { type: 'dot', color: BEACH_CLOSED_COLOR, label: t('legend.notOpen') }
+      ],
+      note: t('datasetDescriptions.beachGrading') + '<br><br>' + t('ui.noSamplingNote') +
+        '<br><br>' + t('ui.districtNote')
+    }),
+    marine: () => ({
+      title: t('datasetNames.marineWater'),
+      rows: [
+        { type: 'dot', color: WATER_COLOR.marine, label: t('legend.marineStation') }
+      ],
+      note: t('datasetDescriptions.marineWater') + '<br><br>' + t('ui.waterParamNote')
+    }),
+    river: () => ({
+      title: t('datasetNames.riverWater'),
+      rows: [
+        { type: 'dot', color: WATER_COLOR.river, label: t('legend.riverStation') }
+      ],
+      note: t('datasetDescriptions.riverWater') + '<br><br>' + t('ui.waterParamNote')
+    }),
+    cnp: () => {
+      /* 圖例由已載入的資料統計出來，而非寫死兩項：
+         日後官方新增許可證類別會自動出現，不會靜默漏掉。 */
+      const counts = {};
+      const grp = layers.cnp;
+      if (grp && grp.eachLayer) {
+        grp.eachLayer((l) => {
+          const p = l.feature && l.feature.properties;
+          if (!p) return;
+          const ty = String(p.PERMIT_TYPE_ENG || '').trim();
+          if (ty) counts[ty] = (counts[ty] || 0) + 1;
+        });
+      }
+      const rows = Object.keys(counts)
+        .sort((a, b) => counts[b] - counts[a])
+        .map((ty) => ({ type: 'dot', color: cnpColor(ty), label: `${cnpTypeLabel(ty)} (${counts[ty]})` }));
+      return {
+        title: t('datasetNames.cnp'),
+        rows,
+        note: t('datasetDescriptions.cnp') + '<br><br>' + t('ui.cnpNote')
+      };
+    },
+    recycle: () => ({
+      title: t('datasetNames.recyclePoints'),
+      rows: [
+        { type: 'dot', color: '#0f9d58', label: t('legend.recycleGreenCat') },
+        { type: 'dot', color: '#7cb342', label: t('legend.recycleOtherCat') }
+      ],
+      note: t('ui.officialName') + '：' + t('datasetNames.recyclePoints')
+    }),
+    noise: () => ({
+      title: t('datasetNames.lnrs'),
+      rows: [
+        { type: 'line', color: '#8e44ad', label: t('legend.lnrsLine') }
+      ],
+      note: t('datasetDescriptions.lnrs') + '<br><br>' + t('datasetDescriptions.l10_2020'),
+      sub: [
+        { id: 'lnrs', label: t('datasetNames.lnrs'), checked: state.noiseSub.lnrs },
+        { id: 'l10', label: t('datasetNames.l10_2020'), checked: state.noiseSub.l10 }
+      ]
+    })
+  };
+
+  function renderLegend() {
+    const lid = activeLayerId();
+    const def = LEGEND_DEFS[lid] ? LEGEND_DEFS[lid]() : null;
+    const titleEl = $('#legend-title');
+    const bodyEl = $('#legend-body');
+    if (!def) { titleEl.textContent = t('legend.title'); bodyEl.innerHTML = ''; return; }
+    titleEl.textContent = def.title;
+
+    let html = '';
+    def.rows.forEach((r) => {
+      const sw = r.type === 'line'
+        ? `<span class="legend-line" style="border-top-color:${r.color}"></span>`
+        : `<span class="legend-swatch" style="background:${r.color}"></span>`;
+      html += `<div class="legend-row">${sw}<span>${esc(r.label)}</span></div>`;
+    });
+    if (def.note) html += `<div class="legend-note">${def.note}</div>`;
+    if (def.sub) {
+      html += `<div class="legend-sub">` + def.sub.map((s) =>
+        `<label><input type="checkbox" data-sub="${s.id}" ${s.checked ? 'checked' : ''}> ${esc(s.label)}</label>`
+      ).join('') + `</div>`;
+    }
+    bodyEl.innerHTML = html;
+
+    bodyEl.querySelectorAll('input[data-sub]').forEach((cb) => {
+      cb.addEventListener('change', () => toggleNoiseSub(cb.dataset.sub, cb.checked));
+    });
+  }
+
+  function toggleNoiseSub(id, on) {
+    state.noiseSub[id] = on;
+    if (state.active !== 'noise') return;
+    if (id === 'lnrs') {
+      if (on) { if (layers.noise) map.addLayer(layers.noise); }
+      else if (layers.noise) map.removeLayer(layers.noise);
+    }
+    if (id === 'l10') {
+      if (!l10Layer) l10Layer = buildL10Layer();
+      if (on) map.addLayer(l10Layer); else map.removeLayer(l10Layer);
+    }
+  }
+
+  /* ======================================================================
+     12. Tab 切換
+     ====================================================================== */
+  function buildTabs() {
+    const mk = (container) => {
+      container.innerHTML = TABS.map((tb) => `
+        <button class="tab" type="button" role="tab" id="tab-${tb.id}"
+                data-tab="${tb.id}" aria-selected="false" tabindex="-1"
+                aria-controls="map" title="${esc(t('tabs.' + tb.id))}">
+          <span class="tab-icon" aria-hidden="true">${tb.icon}</span>
+          <span class="tab-label">${esc(t('tabs.' + tb.id))}</span>
+          <span class="spinner-mini" aria-hidden="true"></span>
+          <span class="err-dot" aria-hidden="true"></span>
+        </button>`).join('');
+    };
+    mk($('#tabs'));
+    mk($('#bottom-nav'));
+
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => onTabClick(btn.dataset.tab));
+      btn.addEventListener('keydown', onTabKeydown);
+    });
+    updateSubTabs();
+  }
+
+  /* 子分頁只在「水質數據」分頁出現；同時切換 body 的 has-subtabs，
+     讓 CSS 決定顯示與否（桌面在主分頁之下、手機在底部導覽之上）。 */
+  function updateSubTabs() {
+    const nav = $('#sub-tabs');
+    if (!nav) return;
+    const tab = TABS.filter((x) => x.id === state.active)[0];
+    const subs = tab && tab.subs;
+    document.body.classList.toggle('has-subtabs', !!subs);
+    nav.setAttribute('aria-label', t('ui.subTabsLabel'));
+    if (!subs) { nav.innerHTML = ''; return; }
+
+    nav.innerHTML = subs.map((sid) => {
+      const on = sid === state.waterSub;
+      return `<button class="sub-tab" type="button" role="tab" data-sub="${sid}"
+                aria-selected="${on ? 'true' : 'false'}" tabindex="${on ? 0 : -1}"
+                title="${esc(t('subs.' + sid))}">${esc(t('subs.' + sid))}</button>`;
+    }).join('');
+
+    nav.querySelectorAll('.sub-tab').forEach((b) => {
+      b.addEventListener('click', () => onSubClick(b.dataset.sub));
+      b.addEventListener('keydown', onSubKeydown);
+    });
+  }
+
+  const onSubClick = debounce(function (sub) {
+    if (!sub || sub === state.waterSub) return;
+    state.waterSub = sub;
+    updateSubTabs();
+    activate(state.active);
+  }, DEBOUNCE_MS);
+
+  function onSubKeydown(e) {
+    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+    if (keys.indexOf(e.key) < 0) return;
+    e.preventDefault();
+    const list = (TABS.filter((x) => x.id === state.active)[0] || {}).subs || [];
+    if (!list.length) return;
+    let i = list.indexOf(state.waterSub);
+    if (e.key === 'ArrowRight') i = (i + 1) % list.length;
+    else if (e.key === 'ArrowLeft') i = (i - 1 + list.length) % list.length;
+    else if (e.key === 'Home') i = 0;
+    else if (e.key === 'End') i = list.length - 1;
+    const target = document.querySelector(`.sub-tab[data-sub="${list[i]}"]`);
+    if (target) { target.focus(); onSubClick(list[i]); }
+  }
+
+  function onTabKeydown(e) {
+    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+    if (keys.indexOf(e.key) < 0) return;
+    e.preventDefault();
+    const list = TABS.map((x) => x.id);
+    let i = list.indexOf(state.active);
+    if (e.key === 'ArrowRight') i = (i + 1) % list.length;
+    else if (e.key === 'ArrowLeft') i = (i - 1 + list.length) % list.length;
+    else if (e.key === 'Home') i = 0;
+    else if (e.key === 'End') i = list.length - 1;
+    const target = document.querySelector(`.tab[data-tab="${list[i]}"]`);
+    if (target) { target.focus(); onTabClick(list[i]); }
+  }
+
+  function setTabState(id) {
+    document.querySelectorAll('.tab').forEach((b) => {
+      const on = b.dataset.tab === id;
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+    });
+  }
+
+  /* 載入中／錯誤指示掛在「分頁」上，但 ensureLayer 傳入的是「圖層」id，
+     所以水質數據的三個子圖層都要映射回 water 分頁。 */
+  function setTabLoading(layerId, on) {
+    const tabId = tabOfLayer(layerId);
+    document.querySelectorAll(`.tab[data-tab="${tabId}"]`).forEach((b) => b.classList.toggle('is-loading', !!on));
+  }
+  function setTabError(layerId, on) {
+    const tabId = tabOfLayer(layerId);
+    document.querySelectorAll(`.tab[data-tab="${tabId}"]`).forEach((b) => {
+      b.classList.toggle('has-error', !!on);
+      if (on) b.title = `${t('tabs.' + tabId)} — ${t('ui.errorHint')}`;
+      else b.title = t('tabs.' + tabId);
+    });
+  }
+
+  function showLoading(on, text) {
+    const el = $('#loading');
+    if (on) { $('#loading-text').textContent = text || t('ui.loading'); el.classList.add('show'); }
+    else el.classList.remove('show');
+  }
+
+  /* 移除地圖上所有已存在圖層 */
+  function clearMapLayers() {
+    Object.keys(layers).forEach((k) => {
+      if (layers[k] && map.hasLayer(layers[k])) map.removeLayer(layers[k]);
+    });
+    if (l10Layer && map.hasLayer(l10Layer)) map.removeLayer(l10Layer);
+  }
+
+  /* 確保圖層已載入（失敗時記錄錯誤並回傳 null） */
+  async function ensureLayer(id) {
+    if (state.loaded[id]) return layers[id];
+    if (state.loading[id]) return state.loading[id];
+    const task = (async () => {
+      setTabLoading(id, true);
+      try {
+        let lyr;
+        if (id === 'air') lyr = await loadAirLayer();
+        else if (id === 'beach') lyr = await loadBeachLayer();
+        else if (id === 'marine') lyr = await loadMarineLayer();
+        else if (id === 'river') lyr = await loadRiverLayer();
+        else if (id === 'recycle') lyr = await loadRecycleLayer();
+        else if (id === 'noise') lyr = await loadNoiseLayer();
+        else if (id === 'cnp') lyr = await loadCnpLayer();
+        layers[id] = lyr;
+        state.loaded[id] = true;
+        state.errors[id] = false;
+        setTabError(id, false);
+        return lyr;
+      } catch (e) {
+        state.errors[id] = true;
+        setTabError(id, true);
+        // 錯誤訊息用資料集名稱（tabs.<layerId> 對子圖層並不存在）
+        const nm = t('datasetNames.' + DATA[id].datasetKey);
+        console.error(`[圖層錯誤] ${nm}：`, e);
+        toast(t('ui.errorLayer').replace('{name}', nm));
+        return null;
+      } finally {
+        setTabLoading(id, false);
+        state.loading[id] = null;
+      }
+    })();
+    state.loading[id] = task;
+    return task;
+  }
+
+  const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
+
+  /* 手機版：圖例預設折疊（桌面版一律展開） */
+  function setLegendCollapsed(collapsed) {
+    const el = $('#legend');
+    const btn = $('#legend-toggle');
+    el.classList.toggle('collapsed', !!collapsed);
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    btn.textContent = collapsed ? '▸' : '▾';
+  }
+
+  /* 依視口寬度同步手機版 UI（首次載入與尺寸變化時呼叫） */
+  function syncMobileUI() {
+    if (isMobile()) {
+      if (!legendTouched) setLegendCollapsed(true);
+    } else {
+      setLegendCollapsed(false);
+    }
+  }
+
+  async function activate(id) {
+    state.active = id;
+    setTabState(id);
+    updateSubTabs();
+    clearMapLayers();
+
+    /* 分頁只決定「顯示哪一組」，實際要載入的圖層由 activeLayerId() 決定 */
+    const lid = activeLayerId();
+    if (!state.loaded[lid]) {
+      showLoading(true, t('ui.loadingLayer').replace('{name}', t('datasetNames.' + DATA[lid].datasetKey)));
+    }
+    const lyr = await ensureLayer(lid);
+    showLoading(false);
+
+    if (lyr) {
+      map.addLayer(lyr);
+      activeLayer = lyr;
+      if (lid === 'noise') {
+        if (state.noiseSub.l10) {
+          if (!l10Layer) l10Layer = buildL10Layer();
+          map.addLayer(l10Layer);
+        }
+        if (!state.noiseSub.lnrs && layers.noise) map.removeLayer(layers.noise);
+      }
+    }
+    renderLegend();
+    if (isMobile() && !legendTouched) setLegendCollapsed(true);
+  }
+
+  const onTabClick = debounce(function (id) {
+    if (!id || id === state.active) return;
+    activate(id);
+  }, DEBOUNCE_MS);
+
+  /* ======================================================================
+     13. 主題切換
+     ====================================================================== */
+  function applyTheme(theme, persist) {
+    state.theme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    const meta = $('#meta-theme-color');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#1a1a2e' : '#ffffff');
+    const btn = $('#theme-btn');
+    btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    btn.setAttribute('aria-label', theme === 'dark' ? t('ui.themeLight') : t('ui.themeDark'));
+    btn.title = btn.getAttribute('aria-label');
+
+    // 底圖替換
+    if (map) {
+      if (basemapLayer) { map.removeLayer(basemapLayer); basemapLayer = null; }
+      if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
+
+      if (theme === 'dark') {
+        basemapLayer = L.layerGroup([
+          L.tileLayer(BASEMAP.darkBase, { maxZoom: 19, attribution: DARK_ATTR }),
+          L.tileLayer(BASEMAP.darkRef, { maxZoom: 19 })
+        ]).addTo(map);
+        // Esri 深色底圖本身已含地名，無需另加政府地名圖層
+      } else {
+        basemapLayer = L.tileLayer(BASEMAP.light, {
+          maxZoom: 19, maxNativeZoom: 19, attribution: GOV_ATTR
+        }).addTo(map);
+        labelLayer = L.tileLayer(state.lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
+          maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95
+        }).addTo(map);
+      }
+      if (basemapLayer.bringToBack) basemapLayer.bringToBack();
+      else if (basemapLayer.eachLayer) basemapLayer.eachLayer((l) => l.bringToBack && l.bringToBack());
+    }
+    if (persist) { try { localStorage.setItem(STORAGE.theme, theme); } catch (e) {} }
+  }
+
+  /* ======================================================================
+     14. 語言切換
+     ====================================================================== */
+  function applyLang(lang, persist) {
+    state.lang = lang;
+    document.documentElement.setAttribute('lang', lang === 'tc' ? 'zh-Hant' : 'en');
+    document.title = t('title');
+
+    // 標題與按鈕
+    $('#app-title').textContent = t('title');
+    const langBtn = $('#lang-btn');
+    langBtn.textContent = lang === 'tc' ? '中 / EN' : 'EN / 中';
+    langBtn.setAttribute('aria-label', t('ui.langSwitch'));
+
+    // Tab 文字
+    document.querySelectorAll('.tab').forEach((b) => {
+      const id = b.dataset.tab;
+      const lbl = b.querySelector('.tab-label');
+      if (lbl) lbl.textContent = t('tabs.' + id);
+      // 錯誤狀態以「圖層」為鍵；水質數據分頁看當前子分頁
+      const errLid = id === 'water' ? state.waterSub : id;
+      b.title = state.errors[errLid] ? `${t('tabs.' + id)} — ${t('ui.errorHint')}` : t('tabs.' + id);
+    });
+    // 分頁列的 aria-label
+    ['#tabs', '#bottom-nav'].forEach((sel) => {
+      const el = $(sel);
+      if (el) el.setAttribute('aria-label', t('ui.tabsLabel'));
+    });
+
+    // 地名標籤圖層
+    if (map && labelLayer && state.theme === 'light') {
+      map.removeLayer(labelLayer);
+      labelLayer = L.tileLayer(lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
+        maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95
+      }).addTo(map);
+    }
+
+    // 重新渲染當前圖層（Popup 內容）
+    // 注意：重建的是「圖層」而非「分頁」，水質數據分頁下要重建當前子分頁的圖層
+    const lid = activeLayerId();
+    if (state.loaded[lid]) {
+      const prev = layers[lid];
+      if (prev && map.hasLayer(prev)) map.removeLayer(prev);
+      layers[lid] = null; state.loaded[lid] = false;
+      activate(state.active);
+    }
+
+    renderLegend();
+    updateSubTabs();
+    const a2hsTxt = $('#a2hs-text');
+    if (a2hsTxt) a2hsTxt.textContent = t('ui.a2hs');
+
+    if (persist) { try { localStorage.setItem(STORAGE.lang, lang); } catch (e) {} }
+  }
+
+  /* ======================================================================
+     15. 初始化
+     ====================================================================== */
+  function initMap() {
+    map = L.map('map', {
+      center: HK_CENTER,
+      zoom: 11,
+      minZoom: 9,
+      maxZoom: 19,
+      zoomControl: true,
+      tap: true,
+      touchZoom: true,
+      scrollWheelZoom: true,
+      attributionControl: true,
+      preferCanvas: false
+    });
+    map.attributionControl.setPrefix(
+      '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a> | 資料來源：環境保護署 / DATA.GOV.HK / CSDI'
+    );
+  }
+
+  function initUI() {
+    $('#theme-btn').addEventListener('click', () => {
+      applyTheme(state.theme === 'dark' ? 'light' : 'dark', true);
+    });
+    $('#lang-btn').addEventListener('click', () => {
+      applyLang(state.lang === 'tc' ? 'en' : 'tc', true);
+    });
+    $('#legend-head').addEventListener('click', () => {
+      if (!isMobile()) return;
+      legendTouched = true;
+      setLegendCollapsed(!$('#legend').classList.contains('collapsed'));
+    });
+    $('#a2hs-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('#a2hs').classList.remove('show');
+      try { localStorage.setItem('hk-env-a2hs-dismissed', '1'); } catch (err) {}
+    });
+    $('#a2hs').addEventListener('click', () => {
+      toast(state.lang === 'tc'
+        ? '請使用瀏覽器選單「加到主畫面 / 安裝應用程式」。'
+        : 'Use the browser menu → "Add to Home Screen / Install app".');
+    });
+  }
+
+  /* 背景預先載入其餘圖層（不阻塞首屏） */
+  function prefetchRest() {
+    // 由小到大排序：海水 10 筆、河溪 13 筆最快，回收點 8858 筆最後
+    const rest = ['beach', 'marine', 'river', 'noise', 'cnp', 'recycle'];
+    let i = 0;
+    const next = () => {
+      if (i >= rest.length) return;
+      const id = rest[i++];
+      if (!state.loaded[id] && !state.loading[id]) {
+        ensureLayer(id).finally(() => setTimeout(next, 120));
+      } else setTimeout(next, 120);
+    };
+    setTimeout(next, 800);
+  }
+
+  /* PWA：註冊 Service Worker + A2HS */
+  function initPWA() {
+    if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((e) => console.warn('[SW] 註冊失敗：', e));
+      });
+    }
+    let dismissed = false;
+    try { dismissed = localStorage.getItem('hk-env-a2hs-dismissed') === '1'; } catch (e) {}
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      if (dismissed) return;
+      $('#a2hs').classList.add('show');
+    });
+  }
+
+  /* 啟動 */
+  function boot() {
+    // 讀取偏好
+    let theme = 'light', lang = 'tc';
+    try {
+      theme = localStorage.getItem(STORAGE.theme) || 'light';
+      lang = localStorage.getItem(STORAGE.lang) || 'tc';
+    } catch (e) {}
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem(STORAGE.theme)) {
+      theme = 'dark';
+    }
+
+    initMap();
+    initUI();
+    buildTabs();
+    applyTheme(theme, false);
+    applyLang(lang, false);   // 會建立底圖與標籤圖層
+    renderLegend();
+    syncMobileUI();
+    initPWA();
+
+    // 預設顯示「香港空氣質素監測網絡」
+    state.active = null;
+    activate('air');
+    prefetchRest();
+
+    // 視窗尺寸變化時重繪地圖，並同步手機版 UI
+    window.addEventListener('resize', debounce(() => {
+      map.invalidateSize();
+      syncMobileUI();
+    }, 150));
+
+    // 除錯／自動化測試用掛鉤（不影響一般使用）
+    window.__hkEnvMap = {
+      get state() { return state; },
+      get layers() { return layers; },
+      get map() { return map; },
+      activate: activate,
+      setWaterSub: (sub) => { if (WATER_SUBS.indexOf(sub) >= 0) { state.waterSub = sub; updateSubTabs(); } },
+      activeLayerId: activeLayerId,
+      reload: () => {
+        const lid = activeLayerId();
+        layers[lid] = null; state.loaded[lid] = false;
+        return activate(state.active);
+      }
+    };
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
+</body>
+</html>
