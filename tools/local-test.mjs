@@ -833,8 +833,8 @@ try {
       rows: rows.length,
       worst: rows.reduce((m, r) => Math.max(m, r.overflow), 0),
       longest: rows.reduce((m, r) => (r.label.length > m.length ? r.label : m), ''),
-      footBr: (footHtml.match(/<br>/g) || []).length,
-      srcThenBr: /cp-src">[^<]*<\\/span><br>/.test(footHtml)
+      srcPresent: /cp-src/.test(footHtml),
+      footHasTimestamp: /\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}/.test(footHtml)
     };
     holder.remove();
     return result;
@@ -842,9 +842,70 @@ try {
   check('no popup row overflows its card (English labels, largest font, narrow viewport)',
     !!rowsFit && !rowsFit.err && rowsFit.worst <= 1,
     rowsFit ? `lang=${rowsFit.lang} card=${rowsFit.cardW}px rows=${rowsFit.rows} worstOverflow=${rowsFit.worst}px longest="${rowsFit.longest}"` : '?');
-  check('every card footer puts the source and the last-update on separate rows',
-    !!rowsFit && rowsFit.footBr >= 2 && rowsFit.srcThenBr === true,
-    rowsFit ? `footerBreaks=${rowsFit.footBr} sourceOnOwnRow=${rowsFit.srcThenBr}` : '?');
+  check('card footers keep the source but no longer repeat the last-update',
+    !!rowsFit && rowsFit.srcPresent === true && rowsFit.footHasTimestamp === false,
+    rowsFit ? `sourcePresent=${rowsFit.srcPresent} footerHasTimestamp=${rowsFit.footHasTimestamp}` : '?');
+
+  /* ---------- long badges must wrap inside the card ----------
+     `.badge` was `white-space: nowrap`, so "General Construction Works" spilled past
+     the card once the font grew. It now wraps and is capped at the card width. */
+  const badgeFit = await evalJs(`(() => {
+    const h = window.__hkEnvMap;
+    let inner = null;
+    h.layers.cnp.eachLayer((l) => {
+      if (inner || !l.feature) return;
+      const c = l.getPopup().getContent();
+      const node = L.DomUtil.create('div');
+      node.innerHTML = (typeof c === 'function') ? c(l) : String(c);
+      inner = node.innerHTML;
+    });
+    if (!inner) return { err: 'no cnp popup' };
+    const holder = document.createElement('div');
+    holder.innerHTML = inner;
+    document.body.appendChild(holder);
+    const card = holder.querySelector('.custom-popup');
+    const cardR = Math.round(card.getBoundingClientRect().right);
+    const badges = [...card.querySelectorAll('.badge')].map((b) => ({
+      text: b.textContent.trim(),
+      overflow: Math.round(b.scrollWidth - b.clientWidth),
+      right: Math.round(b.getBoundingClientRect().right)
+    }));
+    const out = {
+      cardR,
+      count: badges.length,
+      worst: badges.reduce((m, b) => Math.max(m, b.overflow), 0),
+      pastCard: badges.filter((b) => b.right > cardR + 1).length,
+      sample: badges.length ? badges[0].text : ''
+    };
+    holder.remove();
+    return out;
+  })()`);
+  check('long badges wrap inside the card instead of overflowing it',
+    !!badgeFit && !badgeFit.err && badgeFit.worst <= 1 && badgeFit.pastCard === 0,
+    badgeFit ? `cardRight=${badgeFit.cardR} badges=${badgeFit.count} worstOverflow=${badgeFit.worst}px pastCard=${badgeFit.pastCard} sample="${badgeFit.sample}"` : '?');
+
+  /* ---------- clicking a tab recenters the map on Hong Kong ----------
+     Otherwise the map stays wherever the previous layer left it and the newly
+     selected layer can be completely off-screen. */
+  const recenter = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    h.map.setView([22.19, 114.31], 16, { animate: false });
+    await new Promise((r) => setTimeout(r, 300));
+    const c0 = h.map.getCenter();
+    const before = { lat: +c0.lat.toFixed(4), lng: +c0.lng.toFixed(4), zoom: h.map.getZoom() };
+    const btn = document.querySelector('.tab[data-tab="air"]');
+    if (!btn) return { err: 'no air tab button' };
+    btn.click();
+    await new Promise((r) => setTimeout(r, 1500));
+    const c1 = h.map.getCenter();
+    return { before, after: { lat: +c1.lat.toFixed(4), lng: +c1.lng.toFixed(4), zoom: h.map.getZoom() } };
+  })()`, true);
+  check('clicking a tab recenters the map on Hong Kong',
+    !!recenter && !recenter.err &&
+      Math.abs(recenter.after.lat - 22.35) < 0.05 && Math.abs(recenter.after.lng - 114.15) < 0.05,
+    recenter && !recenter.err
+      ? `${recenter.before.lat},${recenter.before.lng}@z${recenter.before.zoom} -> ${recenter.after.lat},${recenter.after.lng}@z${recenter.after.zoom}`
+      : '?');
   /* restore the smallest step so later checks see the default UI */
   await evalJs(`(() => { const d = document.getElementById('fs-down'); for (let i = 0; i < 10; i++) d.click(); })()`);
   await sleep(300);

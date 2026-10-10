@@ -334,7 +334,9 @@ body.has-subtabs .sub-caret { display: block; }
 .badge {
   display: inline-block; padding: 2px 9px; border-radius: 999px;
   font-weight: 700; font-size: calc(12.5px * var(--fs)); color: #fff; line-height: 1.5;
-  white-space: nowrap;
+  /* 原本是 white-space: nowrap，長標籤（例如 "General Construction Works"）在放大
+     字體後會比卡片還寬並溢出卡外。改為可換行並限制在卡片寬度內。 */
+  max-width: 100%; white-space: normal; overflow-wrap: anywhere;
 }
 .badge.aqhi-1 { background: #009e49; }
 .badge.aqhi-2 { background: #f2c200; color: #3a2f00; }
@@ -1137,6 +1139,7 @@ body.has-subtabs .sub-caret { display: block; }
      3. 全域狀態
      ====================================================================== */
   const HK_CENTER = [22.35, 114.15];
+  const MAP_DEFAULT_ZOOM = 11;      // 香港全境的預設視野（切換分頁時會回到這裡）
   const STORAGE = { theme: 'hk-env-map-theme', lang: 'hk-env-map-lang', fs: 'hk-env-map-fs' };
   /* 字體大小級數（倍率）。索引 0 = 原本大小，即最小；只往上加，不縮到更小。
      所有文字 font-size 都是 calc(…px * var(--fs))，故改 --fs 即全站生效。 */
@@ -1908,11 +1911,6 @@ body.has-subtabs .sub-caret { display: block; }
   /* ======================================================================
      9. Popup 內容
      ====================================================================== */
-  /* 頁腳的「最後更新」：標籤一行、時間一行，全部卡片一致（使用者要求）。
-     資料來源另佔一行，故頁腳最少三行。 */
-  function footUpdated(meta) {
-    return esc(t('popup.lastUpdate')) + '<br>' + esc(meta || fmtDateTime(new Date()));
-  }
   function popupShell(title, descHtml, rowsHtml, footExtra) {
     return `<div class="custom-popup">
       ${descHtml || ''}
@@ -1953,9 +1951,9 @@ body.has-subtabs .sub-caret { display: block; }
         rows +
         rowStack(t('popup.lastUpdate'), esc(String(aqhi.publish_date).replace('T', ' ').slice(0, 16)));
     }
+    rows += row(t('ui.dataFetched'), esc(state.meta.air || fmtDateTime(new Date())));
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.airNetwork'))}</p>`;
-    return popupShell(name || '—', desc, rows,
-      footUpdated(state.meta.air));
+    return popupShell(name || '—', desc, rows);
   }
 
   /* ---- 泳灘 Popup ---- */
@@ -2001,9 +1999,7 @@ body.has-subtabs .sub-caret { display: block; }
       ? `<a href="${esc(p.link_beach)}" target="_blank" rel="noopener">EPD 泳灘水質報告</a>`
       : '';
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.beachGrading'))}</p>`;
-    return popupShell(name || '—', desc, rows,
-      footUpdated(state.meta.beach) +
-      (link ? ' | ' + link : ''));
+    return popupShell(name || '—', desc, rows, link);
   }
 
   /* 泳灘彈窗內的檢視切換（事件委派）。
@@ -2061,9 +2057,7 @@ body.has-subtabs .sub-caret { display: block; }
       ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(t('datasetNames.' + DATA[kind].datasetKey))}</a>`
       : '';
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.' + DATA[kind].datasetKey))}</p>`;
-    return popupShell(name || '—', desc, rows,
-      footUpdated(state.meta[kind]) +
-      (linkHtml ? ' | ' + linkHtml : ''));
+    return popupShell(name || '—', desc, rows, linkHtml);
   }
 
   /* ---- 已簽發的建築噪音許可證 Popup ---- */
@@ -2109,9 +2103,7 @@ body.has-subtabs .sub-caret { display: block; }
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.cnp'))}</p>`;
     const search = `<a href="${CNP_SEARCH_URL}" target="_blank" rel="noopener">` +
       `${esc(t('ui.cnpSearchLink'))}</a>`;
-    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), desc, rows,
-      footUpdated(state.meta.cnp) +
-      ' | ' + search);
+    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), desc, rows, search);
   }
 
   /* ---- 公眾可使用的電動車充電器 Popup ---- */
@@ -2159,8 +2151,7 @@ body.has-subtabs .sub-caret { display: block; }
     /* 資料擷取時間同樣上下堆疊（時間字串比標籤長，放大字體後尤甚） */
     rows += rowStack(t('ui.dataFetched'), esc(state.meta.ev || fmtDateTime(new Date())));
     return popupShell(loc || t('datasetNames.evChargers'), '', rows,
-      footUpdated(state.meta.ev) +
-      '<br>' + esc(t('ui.evNote')));
+      esc(t('ui.evNote')));
   }
 
   /* ---- 過去泳灘水質 Popup（含大腸桿菌數列圖） ---- */
@@ -2279,9 +2270,9 @@ body.has-subtabs .sub-caret { display: block; }
     if (proj) rows += row(t('popup.eiaProject'), esc(proj));
     if (report) rows += row(t('popup.eiaReport'), esc(report));
     if (district) rows += row(t('popup.district'), esc(district));
+    rows += row(t('ui.dataFetched'), esc(state.meta.habitat || fmtDateTime(new Date())));
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.habitat'))}</p>`;
-    return popupShell(label || proj || t('datasetNames.habitat'), desc, rows,
-      footUpdated(state.meta.habitat));
+    return popupShell(label || proj || t('datasetNames.habitat'), desc, rows);
   }
 
   /* ---- 回收點 Popup ---- */
@@ -2293,9 +2284,9 @@ body.has-subtabs .sub-caret { display: block; }
     if (cat) rows += row(t('popup.facilityType'), esc(cat));
     if (p.waste_type) rows += row(t('popup.recycleType'), esc(p.waste_type));
     if (p.district_id) rows += row(t('popup.district'), esc(String(p.district_id).replace(/_/g, ' ')));
+    rows += row(t('ui.dataFetched'), esc(state.meta.recycle || fmtDateTime(new Date())));
     const desc = `<p class="cp-desc">${esc(t('datasetNames.recyclePoints'))} · ${esc(t('ui.officialName'))}</p>`;
-    return popupShell(addr || t('datasetNames.recyclePoints'), desc, rows,
-      footUpdated(state.meta.recycle));
+    return popupShell(addr || t('datasetNames.recyclePoints'), desc, rows);
   }
 
   /* ---- 低噪音路面 Popup ---- */
@@ -2304,9 +2295,9 @@ body.has-subtabs .sub-caret { display: block; }
     let rows = row(t('popup.road'), esc(road));
     if (p.materials) rows += row(t('popup.surfaceType'), esc(MATERIAL_LABEL[p.materials] || p.materials));
     if (p.SHAPE_Length != null) rows += row('SHAPE_Length', esc(Number(p.SHAPE_Length).toFixed(1)));
+    rows += row(t('ui.dataFetched'), esc(state.meta.lnrs || fmtDateTime(new Date())));
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.lnrs'))}</p>`;
-    return popupShell(t('datasetNames.lnrs'), desc, rows,
-      footUpdated(state.meta.lnrs));
+    return popupShell(t('datasetNames.lnrs'), desc, rows);
   }
 
   /* ======================================================================
@@ -2949,7 +2940,9 @@ body.has-subtabs .sub-caret { display: block; }
   }
 
   const onSubClick = debounce(function (sub) {
-    if (!sub || sub === state.waterSub) return;
+    if (!sub) return;
+    recenterMap();
+    if (sub === state.waterSub) return;
     state.waterSub = sub;
     updateSubTabs();
     activate(state.active);
@@ -3120,8 +3113,15 @@ body.has-subtabs .sub-caret { display: block; }
     if (isMobile() && !legendTouched) setLegendCollapsed(true);
   }
 
+  /* 使用者要求：每次點頂部分頁（或手機底部導覽）時，地圖一律自動回到香港中心，
+     以免停留在上一個圖層的偏遠位置而看不到新圖層。連點同一分頁亦會歸位。 */
+  function recenterMap() {
+    if (map) map.setView(HK_CENTER, MAP_DEFAULT_ZOOM, { animate: true });
+  }
   const onTabClick = debounce(function (id) {
-    if (!id || id === state.active) return;
+    if (!id) return;
+    recenterMap();
+    if (id === state.active) return;
     activate(id);
   }, DEBOUNCE_MS);
 
@@ -3251,7 +3251,7 @@ body.has-subtabs .sub-caret { display: block; }
   function initMap() {
     map = L.map('map', {
       center: HK_CENTER,
-      zoom: 11,
+      zoom: MAP_DEFAULT_ZOOM,
       minZoom: 9,
       maxZoom: 19,
       zoomControl: true,
