@@ -2075,7 +2075,9 @@ body.has-subtabs .sub-caret { display: block; }
     const textColor = CNP_TEXT[typeEng] || '#ffffff';
     let rows = '';
     if (type) {
-      rows += row(t('popup.permitType'),
+      /* 類別徽章（例如 "General Construction Works"）比標籤長得多，用上下堆疊讓
+         徽章佔滿卡片寬度，否則只會在窄欄中斷字（"Constructio / n Works"）。 */
+      rows += rowStack(t('popup.permitType'),
         `<span class="badge" style="background:${color};color:${textColor}">${esc(type)}</span>`);
     }
     if (p.PERMIT_NO) {
