@@ -2104,15 +2104,17 @@ body.has-subtabs .sub-caret { display: block; }
           `<span class="badge ${free > 0 ? 'aqhi-1' : 'aqhi-4'}">` +
           `${esc(free)}${avail.total == null ? '' : ' / ' + esc(avail.total)}</span>`);
       }
-      if (avail.updated) rows += row(t('popup.availUpdated'), esc(String(avail.updated)));
+      /* 官方更新時間為長字串（例如 "Oct 10, 2026, 10:08:51 AM"），
+         與標籤同排會擠成兩行，故用上下堆疊：標籤一行、數值一行。 */
+      if (avail.updated) rows += rowStack(t('popup.availUpdated'), esc(String(avail.updated)));
     } else if (evAvailPromise && !evAvailIndex) {
       /* 沒有快照檔（例如未設定定時更新）→ 誠實說明並提供官方連結 */
       rows += row(t('popup.availability'),
         `<a href="${EV_OFFICIAL_URL}" target="_blank" rel="noopener">${esc(t('ui.evAvailabilityLink'))}</a>`);
     }
-    rows += row(t('ui.dataFetched'), esc(state.meta.ev || fmtDateTime(new Date())));
-    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.evChargers'))}</p>`;
-    return popupShell(loc || t('datasetNames.evChargers'), desc, rows,
+    /* 資料擷取時間同樣上下堆疊（時間字串比標籤長，放大字體後尤甚） */
+    rows += rowStack(t('ui.dataFetched'), esc(state.meta.ev || fmtDateTime(new Date())));
+    return popupShell(loc || t('datasetNames.evChargers'), '', rows,
       esc(t('popup.lastUpdate')) + '：' + esc(state.meta.ev || fmtDateTime(new Date())) +
       '<br>' + esc(t('ui.evNote')));
   }

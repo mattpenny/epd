@@ -443,6 +443,39 @@ try {
     snapBeforePopup === 0 ? 'deferred until popup open'
       : `already fetched ${snapBeforePopup}x before any popup`);
 
+  /* ---------- EV popup: no description, time rows stacked ----------
+     The italic dataset description was removed from this popup, and the two long
+     time rows ("official update time", "data retrieved at") are stacked so the
+     label and its value each get their own line — side by side they wrapped badly
+     once the font was enlarged. The longest value ("Oct 10, 2026, 10:08:48 AM")
+     measures ~195px at the largest font step, so it fits even the narrowest card. */
+  const evRows = await evalJs(`(() => {
+    const h = window.__hkEnvMap;
+    let out = null;
+    h.layers.ev.eachLayer((l) => {
+      if (out) return;
+      const p = l.feature && l.feature.properties;
+      if (!p) return;
+      const c = l.getPopup().getContent();
+      const node = L.DomUtil.create('div');
+      node.innerHTML = (typeof c === 'function') ? c(l) : String(c);
+      const rows = [...node.querySelectorAll('.cp-row')];
+      const last = rows[rows.length - 1];
+      out = {
+        hasDesc: !!node.querySelector('.cp-desc'),
+        stacked: rows.filter((r) => r.classList.contains('cp-row--stack')).length,
+        lastStacked: !!(last && last.classList.contains('cp-row--stack')),
+        lastValue: last && last.querySelector('.cp-value') ? last.querySelector('.cp-value').textContent.trim() : ''
+      };
+    });
+    return out;
+  })()`);
+  check('EV popup no longer shows the italic dataset description',
+    !!evRows && evRows.hasDesc === false, evRows ? 'description removed' : 'no popup');
+  check('EV popup stacks the time rows (label and value on their own lines)',
+    !!evRows && evRows.stacked >= 2 && evRows.lastStacked === true,
+    evRows ? `stackedRows=${evRows.stacked} lastRowStacked=${evRows.lastStacked} last="${evRows.lastValue}"` : 'no popup');
+
   /* the snapshot must be same-origin, and no ev-charger.epd.gov.hk fetch may happen */
   const evHost = net.filter((n) => /ev-charger\\.epd\\.gov\\.hk/.test(n.url));
   check('page never fetches the CORS-blocked EPD host directly',
