@@ -694,6 +694,8 @@ body.has-subtabs .sub-caret { display: block; }
         ecoliShort: '大腸桿菌',
         ecoliLatest: '最近一次大腸桿菌（每 100 毫升）',
         histTrend: '最近歷次大腸桿菌數目（左＝最舊，右＝最新）',
+        histTrendWq: '最近歷次溶解氧（左＝最舊，右＝最新）',
+        histTrendBod: '最近歷次五天生化需氧量（左＝最舊，右＝最新）',
         histSpan: '跨度 {n} 天',
         histSamples: '序列中的採樣次數',
         histAvg: '期間平均（自行計算）',
@@ -765,6 +767,10 @@ body.has-subtabs .sub-caret { display: block; }
         beachViewLabel: '檢視',
         beachTabGrade: '水質等級',
         beachTabHistory: '歷史記錄',
+        wqTabLatest: '最新數據',
+        wqHistLoading: '正在查詢官方歷史記錄…',
+        wqHistNoData: '官方快照沒有此測站的歷史記錄',
+        wqHistFailed: '歷史記錄載入失敗，請關閉再重開此彈窗',
         habitatNote: '注意：生境圖來自已核准的環境影響評估報告，涵蓋範圍限於各報告的研究區，並非全港生境調查；類別與界線以個別報告為準。'
       },
       /* 電動車充電器：充電速度分類（對應官方欄位前綴） */
@@ -864,6 +870,8 @@ body.has-subtabs .sub-caret { display: block; }
         ecoliShort: 'E. coli',
         ecoliLatest: 'Latest E. coli (per 100 mL)',
         histTrend: 'Recent E. coli readings (left = oldest, right = newest)',
+        histTrendWq: 'Recent dissolved oxygen readings (left = oldest, right = newest)',
+        histTrendBod: 'Recent 5-day BOD readings (left = oldest, right = newest)',
         histSpan: 'span {n} days',
         histSamples: 'Sampling visits in series',
         histAvg: 'Average over period (calculated here)',
@@ -935,6 +943,10 @@ body.has-subtabs .sub-caret { display: block; }
         beachViewLabel: 'View',
         beachTabGrade: 'Water quality',
         beachTabHistory: 'History',
+        wqTabLatest: 'Latest',
+        wqHistLoading: 'Loading official historical records…',
+        wqHistNoData: 'The official snapshot has no history for this station',
+        wqHistFailed: 'Failed to load the historical records; close and reopen this popup',
         habitatNote: 'Note: habitat maps come from approved Environmental Impact Assessment reports and cover only each report\u2019s study area, not a territory-wide habitat survey. Categories and boundaries follow the individual reports.'
       },
       /* EV chargers: charging speed categories (matching the official field prefixes) */
@@ -2010,6 +2022,26 @@ body.has-subtabs .sub-caret { display: block; }
      不可用 DOM 元素的 _leaflet_id 反查：泳灘標記放在 markerClusterGroup 內，
      DOM 上的 id 屬於叢集的代理標記，與圖層 id 不同（實測 DOM=1941、圖層=190）。 */
   function onMapPopupClick(e) {
+    /* 海水／河溪彈窗的「最新數據／歷史記錄」切換（版面與泳灘水質卡一致）。
+       快照是首次進入歷史檢視時才抓；抓完要重畫，故完成後再關閉並重開同一彈窗。 */
+    const wqBtn = e.target && e.target.closest ? e.target.closest('[data-wq-view]') : null;
+    if (wqBtn && e.target.closest('#map')) {
+      const layer = map && map._popup && map._popup._source;
+      if (!layer || !layer.feature) return;
+      const key = wqBtn.getAttribute('data-wq-key');
+      const view = wqBtn.getAttribute('data-wq-view');
+      if (!key || !view) return;
+      wqHistoryView[key] = view;
+      if (view === 'history') {
+        ensureWqHistory().then(() => {
+          if (wqHistoryView[key] !== 'history') return;
+          layer.closePopup(); layer.openPopup();
+        });
+      }
+      layer.closePopup(); layer.openPopup();
+      return;
+    }
+
     const btn = e.target && e.target.closest ? e.target.closest('[data-bh-view]') : null;
     if (!btn || !e.target.closest('#map')) return;
     const layer = map && map._popup && map._popup._source;
@@ -2035,8 +2067,8 @@ body.has-subtabs .sub-caret { display: block; }
   /* ---- 近期海水／河溪水質數據 Popup ---- */
   function waterPopup(p, kind) {
     const name = waterStationName(p);
-    const doVal = waterValue(p, 'do');
-    const bodVal = waterValue(p, 'bod');
+    const key = String(p.A_Station || '').trim();
+    const view = wqHistoryView[key] || 'latest';
     let rows = '';
     /* 官方分組：海水＝水質管制區（見 MARINE_ZONE）；河溪的官方分組就是河溪本身，
        已顯示在彈窗標題，故不重複列一行。 */
@@ -2044,13 +2076,35 @@ body.has-subtabs .sub-caret { display: block; }
       const zone = marineZone(p);
       if (zone) rows += row(t('popup.waterZone'), esc(zone));
     }
-    if (p.A_Station) rows += row(t('popup.stationCode'), esc(String(p.A_Station).trim()));
-    if (p.B_Sampling_Date) rows += row(t('popup.samplingDate'), esc(String(p.B_Sampling_Date).trim()));
-    /* 標籤已含官方單位（毫克/升），故只顯示原值 */
-    rows += row(t('popup.dissolvedOxygen'),
-      doVal == null ? '—' : `<span class="badge badge-param">${esc(doVal)}</span>`);
-    rows += row(t('popup.bod5'),
-      bodVal == null ? '—' : `<span class="badge badge-param">${esc(bodVal)}</span>`);
+    if (p.A_Station) rows += row(t('popup.stationCode'), esc(key));
+
+    /* 兩個檢視共用同一個彈窗（同一測站、同一位置，故不另設分頁）：
+       「最新數據」＝官方最新一次採樣；「歷史記錄」＝官方歷史 CSV 快照的數列圖。
+       版面與泳灘水質卡一致。 */
+    const tabs = `<div class="cp-tabs">
+      <button type="button" class="cp-tab${view === 'latest' ? ' is-on' : ''}"
+              data-wq-view="latest" data-wq-kind="${esc(kind)}" data-wq-key="${esc(key)}">${esc(t('ui.wqTabLatest'))}</button>
+      <button type="button" class="cp-tab${view === 'history' ? ' is-on' : ''}"
+              data-wq-view="history" data-wq-kind="${esc(kind)}" data-wq-key="${esc(key)}">${esc(t('ui.beachTabHistory'))}</button>
+    </div>`;
+    rows += rowStack(t('ui.beachViewLabel'), tabs);
+
+    if (view === 'history') {
+      if (!wqHistorySnapshot) ensureWqHistory();   // 首次進入時才抓快照
+      rows += wqHistorySnapshot
+        ? wqHistorySection(kind, key)
+        : rowStack(t('popup.histTrendWq'),
+            `<span class="cp-sub">${esc(t('ui.wqHistLoading'))}</span>`);
+    } else {
+      const doVal = waterValue(p, 'do');
+      const bodVal = waterValue(p, 'bod');
+      if (p.B_Sampling_Date) rows += row(t('popup.samplingDate'), esc(String(p.B_Sampling_Date).trim()));
+      /* 標籤已含官方單位（毫克/升），故只顯示原值 */
+      rows += row(t('popup.dissolvedOxygen'),
+        doVal == null ? '—' : `<span class="badge badge-param">${esc(doVal)}</span>`);
+      rows += row(t('popup.bod5'),
+        bodVal == null ? '—' : `<span class="badge badge-param">${esc(bodVal)}</span>`);
+    }
     rows += row(t('ui.dataFetched'), esc(state.meta[kind] || fmtDateTime(new Date())));
     const link = waterLink(p);
     const linkHtml = link
@@ -2258,6 +2312,90 @@ body.has-subtabs .sub-caret { display: block; }
     rows += row(t('popup.histSamples'), esc(String(series.length)));
     if (avg != null) rows += row(t('popup.histAvg'), esc(String(avg)));
     if (peak != null) rows += row(t('popup.histPeak'), esc(String(peak)));
+    return rows;
+  }
+
+  /* ---- 海水／河溪的歷史記錄 ----
+     官方開放數據（CSDI）只有測站清單，沒有歷史測量值；真正的歷史數據只在環保署
+     的互動頁面上。故由建置腳本（tools/build-wq-history.mjs，可經 GitHub Actions
+     定時執行）以無頭瀏覽器下載官方 CSV，縮減後寫成同源的 data/wq-history.json，
+     網頁只讀自己的檔案，因此沒有跨網域問題。
+     序列格式：[日期, 溶解氧(mg/L), 五天生化需氧量(mg/L)]，缺值為 null。 */
+  const WQ_HISTORY_URL = 'data/wq-history.json';
+  let wqHistoryPromise = null;
+  let wqHistorySnapshot = null;      // 快照（載入後才會有值）
+  const wqHistoryView = {};          // 測站代號 → 'latest' | 'history'
+
+  function ensureWqHistory() {
+    if (wqHistoryPromise) return wqHistoryPromise;
+    wqHistoryPromise = fetchJson(WQ_HISTORY_URL).then((j) => {
+      wqHistorySnapshot = j;
+      console.info(`[水質歷史] 快照：海水 ${Object.keys((j && j.marine) || {}).length} 站、` +
+        `河溪 ${Object.keys((j && j.river) || {}).length} 站（快照時間 ${j && j.generatedAt}）`);
+      return j;
+    }).catch((e) => {
+      console.warn('[水質歷史] 未找到歷史快照，只顯示最新數據：', e && e.message);
+      wqHistorySnapshot = null;
+      return null;
+    });
+    return wqHistoryPromise;
+  }
+  function wqSeriesFor(kind, key) {
+    const g = wqHistorySnapshot && wqHistorySnapshot[kind];
+    const rec = g && g[key];
+    return rec && Array.isArray(rec.series) && rec.series.length ? rec.series : null;
+  }
+  /* 與泳灘卡同一種長條圖，但只用單色 —— 官方沒有為溶解氧／生化需氧量訂等級，
+     故不自行分級上色（與其他圖層一致的做法）。which: 1 = 溶解氧、2 = 生化需氧量 */
+  function wqChart(series, which, color, label) {
+    const nums = series.map((s) => { const v = parseFloat(s[which]); return isFinite(v) ? v : 0; });
+    const max = Math.max.apply(null, nums.concat([0.0001]));
+    const W = 268, H = 64;
+    const gap = series.length > 60 ? 1 : 2;
+    const bw = Math.max(1.5, (W - gap * (series.length - 1)) / series.length);
+    const bars = series.map((s, i) => {
+      const h = Math.max(1, Math.round((nums[i] / max) * (H - 6)));
+      return `<rect x="${(i * (bw + gap)).toFixed(1)}" y="${(H - h).toFixed(1)}" ` +
+        `width="${bw.toFixed(1)}" height="${h}" fill="${color}"></rect>`;
+    }).join('');
+    const oldest = series[0][0] || '', newest = series[series.length - 1][0] || '';
+    return `<div class="hb-chart">
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+           aria-label="${esc(label)}">${bars}</svg>
+      <div class="hb-axis"><span>${esc(oldest)}</span><span></span><span>${esc(newest)}</span></div>
+    </div>`;
+  }
+  /* 最新值／期間平均（自行計算，會標明） */
+  function wqStats(series, which) {
+    const nums = series.map((s) => parseFloat(s[which])).filter((v) => isFinite(v));
+    if (!nums.length) return { latest: null, avg: null };
+    const last = series[series.length - 1][which];
+    return {
+      latest: last,
+      avg: Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10
+    };
+  }
+  function wqHistorySection(kind, key) {
+    const color = WATER_COLOR[kind] || HIST_BEACH_COLOR;
+    const series = wqSeriesFor(kind, key);
+    if (!series) {
+      return rowStack(t('popup.histTrendWq'),
+        `<span class="cp-sub">${esc(t('ui.wqHistNoData'))}</span>`);
+    }
+    const doS = wqStats(series, 1), bodS = wqStats(series, 2);
+    const fmt = (v) => (v == null || v === '' ? '—' : String(v));
+    let rows = rowStack(t('popup.histTrendWq'), wqChart(series, 1, color, t('popup.histTrendWq')));
+    rows += rowStack(t('popup.histTrendBod'), wqChart(series, 2, color, t('popup.histTrendBod')));
+    rows += row(t('popup.samplingDate'), esc(String(series[series.length - 1][0] || '—')));
+    rows += row(t('popup.histSamples'), esc(String(series.length)));
+    if (doS.avg != null) {
+      rows += row(t('popup.dissolvedOxygen'),
+        `${esc(fmt(doS.latest))} <span class="cp-sub">${esc(t('popup.histAvg'))} ${esc(String(doS.avg))}</span>`);
+    }
+    if (bodS.avg != null) {
+      rows += row(t('popup.bod5'),
+        `${esc(fmt(bodS.latest))} <span class="cp-sub">${esc(t('popup.histAvg'))} ${esc(String(bodS.avg))}</span>`);
+    }
     return rows;
   }
 
