@@ -1,0 +1,47 @@
+name: Update EV charger availability snapshot
+
+# WHY: the official EPD availability file sends no CORS header and answers
+# preflight with 405, so the browser can never fetch it. This job performs the
+# fetch outside the browser and commits a compact same-origin copy that the
+# page reads from data/ev-availability.json.
+#
+# NOTE ON FREQUENCY: GitHub's cron is best-effort and is frequently delayed
+# under load, so 15 minutes is already optimistic in practice. The page always
+# displays the snapshot's own timestamp, so users are never misled about age.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:        # allows a manual run from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ev-availability
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch and compact the official availability data
+        run: node tools/build-ev-availability.mjs
+
+      - name: Commit if the snapshot changed
+        run: |
+          if [ -z "$(git status --porcelain data/ev-availability.json)" ]; then
+            echo "No change in snapshot; nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ev-availability.json
+          git commit -m "chore: update EV availability snapshot"
+          git push

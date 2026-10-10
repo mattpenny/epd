@@ -262,7 +262,41 @@ body.has-subtabs .sub-caret { display: block; }
   flex: 0 0 auto; min-width: 84px; color: var(--text-secondary); font-size: 12px;
 }
 .custom-popup .cp-value { flex: 1 1 auto; word-break: break-word; }
+/* 寬內容列：標籤在上、內容在下。用於「充電器（速度 · 插頭標準 · 數目）」這類
+   內容比標籤長得多的情況 —— 原本單行 flex 會令徽章擠在右邊並超出卡片。 */
+.custom-popup .cp-row.cp-row--stack { display: block; }
+.custom-popup .cp-row.cp-row--stack .cp-label { display: block; min-width: 0; margin-bottom: 4px; }
+.custom-popup .cp-row.cp-row--stack .cp-value { display: block; }
+/* 每個徽章獨立一行，確保多個「速度 · 插頭標準 · 數目」不會互相擠壓 */
+.custom-popup .cp-chargers { display: block; }
+.custom-popup .cp-chargers .badge { display: inline-block; margin: 0 0 4px; }
 .custom-popup .cp-address { color: var(--text-secondary); font-size: 12px; }
+/* 許可證編號：等寬字體，方便對照 */
+.custom-popup .cp-permit-no {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700; font-size: 12.5px; letter-spacing: .02em;
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 4px; padding: 1px 6px;
+}
+/* 彈窗內的檢視切換（水質等級 / 歷史記錄） */
+.custom-popup .cp-tabs { display: flex; gap: 6px; }
+.custom-popup .cp-tab {
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  padding: 4px 12px; border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary); color: var(--text-secondary);
+}
+.custom-popup .cp-tab.is-on {
+  background: var(--tab-active); border-color: var(--tab-active); color: #fff;
+}
+/* 歷史泳灘水質數列圖 */
+.custom-popup .hb-chart { display: block; }
+.custom-popup .hb-chart svg { display: block; background: var(--bg-secondary); border-radius: 4px; }
+.custom-popup .hb-axis {
+  display: flex; justify-content: space-between; align-items: baseline;
+  color: var(--text-secondary); font-size: 10.5px; margin-top: 2px; gap: 6px;
+}
+.custom-popup .hb-axis span:nth-child(2) { opacity: .75; }
 .custom-popup .cp-sub { color: var(--text-secondary); font-size: 11.5px; margin-top: 2px; }
 
 /* 彩色標籤：關鍵數值 */
@@ -529,8 +563,10 @@ body.has-subtabs .sub-caret { display: block; }
         air: '香港空氣質素監測網絡',
         water: '水質數據',
         recycle: '綠在區區回收點',
+        ev: '電動車充電器',
         noise: '低噪音路面',
-        cnp: '已簽發的建築噪音許可證'
+        cnp: '已簽發的建築噪音許可證',
+        habitat: '環評報告中的生境圖'
       },
       /* 「水質數據」分頁的子分頁（名稱沿用官方數據集標題） */
       subs: {
@@ -550,8 +586,10 @@ body.has-subtabs .sub-caret { display: block; }
         industrial: '工業區(影響因素)',
         river: '過去河溪水質數據',
         marine: '過去海水水質數據',
-        habitat: '環評報告中的生境圖',
-        recyclePoints: '回收點數據資料'
+        recyclePoints: '回收點數據資料',
+        evChargers: '公眾可使用的電動車充電器',
+        histBeachWQ: '過去泳灘水質數據',
+        habitat: '環評報告中的生境圖'
       },
       datasetDescriptions: {
         airNetwork: '香港空氣質素監測網絡由一般和路邊空氣質素監測站組成，分別持續監測大氣和路邊的污染物水平。',
@@ -565,7 +603,9 @@ body.has-subtabs .sub-caret { display: block; }
         industrial: '數據顯示了根據《噪音管制條例》下技術備忘錄去決定「地區對噪音感應程度的級別」的工業區(影響因素)的位置。',
         river: '空間數據共享平台上關於過去河溪水質數據的空間數據集。多種文件格式可用於應用程式介面中下載。',
         marine: '空間數據共享平台上關於過去海水水質數據的空間數據集。多種文件格式可用於應用程式介面中下載。',
-        habitat: '已核准的環境影響評估報告中的生境圖。'
+        habitat: '已核准的環境影響評估報告中的生境圖。',
+        evChargers: '公眾可使用的電動車充電器位置，以及每個位置各「充電速度 × 插頭標準」的充電器數目。',
+        histBeachWQ: '環保署泳灘水質監測的歷史數據，每個泳灘每次採樣的大腸桿菌數目（每 100 毫升）。圖表顯示該泳灘最近 96 次採樣（約 2 至 3 年）。'
       },
       popup: {
         station: '監測站',
@@ -594,7 +634,22 @@ body.has-subtabs .sub-caret { display: block; }
         validity: '有效期',
         permitStatus: '現況（按有效期推算）',
         permittee: '承辦商',
-        siteAddress: '工地地址'
+        siteAddress: '工地地址',
+        chargers: '充電器（速度 · 插頭標準 · 數目）',
+        chargerTotal: '充電器總數（自行加總）',
+        availability: '實時可用情況',
+        availUpdated: '官方實時更新時間',
+        ecoli: '大腸桿菌（每 100 毫升）',
+        ecoliShort: '大腸桿菌',
+        ecoliLatest: '最近一次大腸桿菌（每 100 毫升）',
+        histTrend: '最近歷次大腸桿菌數目（左＝最舊，右＝最新）',
+        histSpan: '跨度 {n} 天',
+        histSamples: '序列中的採樣次數',
+        histAvg: '期間平均（自行計算）',
+        histPeak: '期間最高（自行計算）',
+        habitatType: '生境類別',
+        eiaProject: '環評工程項目',
+        eiaReport: '環評報告編號'
       },
       legend: {
         good: '良好',
@@ -617,7 +672,11 @@ body.has-subtabs .sub-caret { display: block; }
         marineStation: '海水水質監測站',
         riverStation: '河溪水質監測站',
         cnpGeneral: '一般建築工程',
-        cnpPiling: '撞擊式打樁工程'
+        cnpPiling: '撞擊式打樁工程',
+        evStandard: '標準充電器',
+        evMedium: '中速充電器',
+        evQuick: '快速充電器',
+        evFast: '高速充電器'
       },
       ui: {
         loading: '載入中…',
@@ -641,7 +700,28 @@ body.has-subtabs .sub-caret { display: block; }
         themeLight: '切換至淺色模式',
         themeDark: '切換至深色模式',
         langSwitch: '切換語言',
-        officialName: '官方數據集名稱'
+        officialName: '官方數據集名稱',
+        evAvailabilityLink: '查看官方實時可用情況',
+        evNote: '注意：充電器數目為官方數據集的靜態數目；「實時可用情況」為官方即時數字，經定時快照取得，只涵蓋部分位置。',
+        evAvailNotProvided: '官方未為此位置提供實時數字',
+        cnpSearchLink: '在環保署搜尋／下載許可證',
+        histBeachNote: '注意：官方只提供大腸桿菌實測數目（每 100 毫升），並無等級評級，因此不設顏色分級（圖上的顏色只作視覺分級，非官方等級）。地圖只涵蓋最近 10 年的數據集；圖表顯示最近 96 次採樣。此為歷史數據，並非最新泳灘等級。',
+        histBeachNoData: '此泳灘在所選期間內沒有歷史記錄',
+        histBeachLoadFailed: '歷史序列載入失敗，請關閉再重開此彈窗',
+        histBeachLoading: '正在查詢歷史記錄…',
+        beachViewLabel: '檢視',
+        beachTabGrade: '水質等級',
+        beachTabHistory: '歷史記錄',
+        habitatNote: '注意：生境圖來自已核准的環境影響評估報告，涵蓋範圍限於各報告的研究區，並非全港生境調查；類別與界線以個別報告為準。'
+      },
+      /* 電動車充電器：充電速度分類（對應官方欄位前綴） */
+      ev: {
+        speed: {
+          standard: '標準',
+          medium: '中速',
+          quick: '快速',
+          fast: '高速'
+        }
       }
     },
     en: {
@@ -650,8 +730,10 @@ body.has-subtabs .sub-caret { display: block; }
         air: 'Hong Kong Air Quality Monitoring Network',
         water: 'Water Quality Data',
         recycle: 'Green Community Recycling Points',
+        ev: 'EV Chargers',
         noise: 'Low Noise Road Surface',
-        cnp: 'Issued Construction Noise Permit'
+        cnp: 'Issued Construction Noise Permit',
+        habitat: 'Habitat Maps from EIA Reports'
       },
       /* Sub-tabs of the "Water Quality Data" tab (official dataset titles) */
       subs: {
@@ -672,7 +754,9 @@ body.has-subtabs .sub-caret { display: block; }
         river: 'Past River Water Quality Data',
         marine: 'Past Marine Water Quality Data',
         habitat: 'Habitat Maps from EIA Reports',
-        recyclePoints: 'Recyclable Collection Points Data'
+        recyclePoints: 'Recyclable Collection Points Data',
+        evChargers: 'EV Chargers for Public Access',
+        histBeachWQ: 'Historical Beach Water Quality Data'
       },
       datasetDescriptions: {
         airNetwork: 'The Hong Kong Air Quality Monitoring Network comprises general and roadside air quality monitoring stations which continuously monitor the pollutant levels in the atmosphere and at the roadside respectively.',
@@ -686,7 +770,9 @@ body.has-subtabs .sub-caret { display: block; }
         industrial: 'Data showing the location of industrial areas (contributing factor) for determining the "Acceptable Noise Levels" under the Technical Memorandum of the Noise Control Ordinance.',
         river: 'Spatial dataset on past river water quality data on the Common Spatial Data Infrastructure. Multiple file formats are available for download via API.',
         marine: 'Spatial dataset on past marine water quality data on the Common Spatial Data Infrastructure. Multiple file formats are available for download via API.',
-        habitat: 'Habitat maps from approved Environmental Impact Assessment reports.'
+        habitat: 'Habitat maps from approved Environmental Impact Assessment reports.',
+        evChargers: 'Locations of EV chargers for public access, with the number of chargers of each charging speed and plug standard at each location.',
+        histBeachWQ: 'Historical EPD beach water quality monitoring data: the E. coli count per 100 mL at each sampling visit. The chart shows the most recent 96 visits for that beach (roughly 2–3 years).'
       },
       popup: {
         station: 'Monitoring Station',
@@ -715,7 +801,22 @@ body.has-subtabs .sub-caret { display: block; }
         validity: 'Validity',
         permitStatus: 'Status (derived from validity)',
         permittee: 'Permittee',
-        siteAddress: 'Site Address'
+        siteAddress: 'Site Address',
+        chargers: 'Chargers (speed · plug standard · count)',
+        chargerTotal: 'Total chargers (summed by this app)',
+        availability: 'Real-time availability',
+        availUpdated: 'Official update time',
+        ecoli: 'E. coli (per 100 mL)',
+        ecoliShort: 'E. coli',
+        ecoliLatest: 'Latest E. coli (per 100 mL)',
+        histTrend: 'Recent E. coli readings (left = oldest, right = newest)',
+        histSpan: 'span {n} days',
+        histSamples: 'Sampling visits in series',
+        histAvg: 'Average over period (calculated here)',
+        histPeak: 'Peak over period (calculated here)',
+        habitatType: 'Habitat type',
+        eiaProject: 'EIA project',
+        eiaReport: 'EIA report no.'
       },
       legend: {
         good: 'Good',
@@ -738,7 +839,11 @@ body.has-subtabs .sub-caret { display: block; }
         marineStation: 'Marine water quality monitoring station',
         riverStation: 'River water quality monitoring station',
         cnpGeneral: 'General Construction Works',
-        cnpPiling: 'Percussive Piling'
+        cnpPiling: 'Percussive Piling',
+        evStandard: 'Standard charger',
+        evMedium: 'Medium charger',
+        evQuick: 'Quick charger',
+        evFast: 'Fast charger'
       },
       ui: {
         loading: 'Loading…',
@@ -762,7 +867,28 @@ body.has-subtabs .sub-caret { display: block; }
         themeLight: 'Switch to light mode',
         themeDark: 'Switch to dark mode',
         langSwitch: 'Switch language',
-        officialName: 'Official dataset name'
+        officialName: 'Official dataset name',
+        evAvailabilityLink: 'Official real-time availability',
+        evNote: 'Note: the charger counts are the official static counts. "Real-time availability" is the official live figure, obtained via a scheduled snapshot, and only covers some locations.',
+        evAvailNotProvided: 'The official source publishes no live figure for this location',
+        cnpSearchLink: 'Search / download permits at EPD',
+        histBeachNote: 'Note: the official dataset publishes measured E. coli counts (per 100 mL) only, with no official grading, so the colours on the chart are a visual scale, not official grades. The map covers the most recent 10 years of the dataset; the chart shows the latest 96 sampling visits. This is historical data, not the latest beach grade.',
+        histBeachNoData: 'No historical record for this beach in the selected period',
+        histBeachLoadFailed: 'Failed to load the historical series; close and reopen this popup',
+        histBeachLoading: 'Loading historical records…',
+        beachViewLabel: 'View',
+        beachTabGrade: 'Water quality',
+        beachTabHistory: 'History',
+        habitatNote: 'Note: habitat maps come from approved Environmental Impact Assessment reports and cover only each report\u2019s study area, not a territory-wide habitat survey. Categories and boundaries follow the individual reports.'
+      },
+      /* EV chargers: charging speed categories (matching the official field prefixes) */
+      ev: {
+        speed: {
+          standard: 'Standard',
+          medium: 'Medium',
+          quick: 'Quick',
+          fast: 'Fast'
+        }
       }
     }
   };
@@ -779,6 +905,71 @@ body.has-subtabs .sub-caret { display: block; }
   const arcQuery = (ds, layer, fields) =>
     `https://portal.csdi.gov.hk/server/rest/services/common/${ds}/MapServer/${layer}/query` +
     `?where=1%3D1&outFields=${encodeURIComponent(fields)}&returnGeometry=true&outSR=4326&f=json`;
+
+  /* 圖層查詢的通用版本（供需要 where／幾何簡化／分頁的圖層使用）。
+     - where：ArcGIS SQL，預設 1=1
+     - offset／precision：maxAllowableOffset（Douglas-Peucker，單位為度）與
+       geometryPrecision。實測生境圖用 offset=0.00005（約 5 米）可把 15.3MB
+       減至約 9MB，而在本網站可見的縮放級數下看不出差異。 */
+  const arcLayerUrl = (ds, layer, opts) => {
+    const o = opts || {};
+    let u = `https://portal.csdi.gov.hk/server/rest/services/common/${ds}/MapServer/${layer}/query` +
+      `?where=${encodeURIComponent(o.where || '1=1')}` +
+      `&outFields=${encodeURIComponent(o.fields || '*')}` +
+      `&returnGeometry=true&outSR=4326&f=json`;
+    if (o.offset) u += `&maxAllowableOffset=${o.offset}`;
+    if (o.precision) u += `&geometryPrecision=${o.precision}`;
+    return u;
+  };
+
+  /* 「公眾可使用的電動車充電器」欄位清單。
+     官方欄位名帶有空格／雙底線／尾隨底線（例如 MEDIUM_GB_T20234_2_AC__no、
+     REMARK_FOR__OTHERS_），必須逐字照抄，否則 ArcGIS 會回 HTTP 200 +
+     錯誤主體，靜默變成「0 筆」。（資料集名稱：geotagging） */
+  const EV_FIELDS =
+    'NAME_OF_DISTRICT_COUNCIL_DISTRICT_EN,LOCATION_EN,ADDRESS_EN,' +
+    'NAME_OF_DISTRICT_COUNCIL_DISTRICT_TC,LOCATION_TC,ADDRESS_TC,' +
+    'STANDARD_BS1363_no,MEDIUM_CCS_DC_COMBO_no,MEDIUM_IEC62196_no,' +
+    'MEDIUM_SAEJ1772_no,MEDIUM_GB_T20234_2_AC__no,MEDIUM_OTHERS_no,' +
+    'QUICK_CHAdeMO_no,QUICK_CCS_DC_COMBO_no,QUICK_IEC62196_no,' +
+    'QUICK_GB_T20234_3_DC__no,QUICK_OTHERS_no,' +
+    'FAST_CHAdeMO_no,FAST_CCS_DC_COMBO_no,FAST_GB_T20234_3_DC__no,' +
+    'FAST_OTHERS_no,REMARK_FOR__OTHERS_,DATA_PATH';
+
+  /* 「環評報告中的生境圖」欄位清單。各圖層的大小寫不一致：
+     L1 是 layercateg／layername／reportname，L11 是 LayerCateg／LayerName／ReportName，
+     L3 用 figno（其餘用 FigNo）。一次查詢要跨 16 個圖層時，只能挑各層共有的欄位，
+     或接受部分欄位為空 —— 前端取值時一律做大小寫容錯（見 habitatCatKey／habitatLabel）。 */
+  const HABITAT_FIELDS =
+    'OBJECTID,Project,district,layercateg,layername,reportname,FigNo';
+
+  /* 過去泳灘水質數據的年份範圍（相對於執行時的年份往前推，不會隨時間失效）。
+     注意日期欄位是 DD/MM/YYYY 字串，故用 LIKE '%/YYYY' 比對年份尾巴，
+     亦因此 where 會隨年份變長，只保留最近 HIST_BEACH_YEARS 年。 */
+  const HIST_BEACH_YEARS = 10;
+  /* 每個泳灘在歷史圖上顯示最近多少次採樣。
+     這不是「時間範圍」而是「採樣次數」——官方約每週採樣，故 24 次只覆蓋約 7 個月，
+     會令人誤以為只有半年資料（實際官方數據由 1986 年起齊全）。96 次約覆蓋 2–3 年。 */
+  const HIST_BEACH_POINTS = 96;
+
+  function histBeachWhere() {
+    const now = new Date().getFullYear();
+    const clauses = [];
+    for (let y = now; y > now - HIST_BEACH_YEARS; y--) {
+      clauses.push(`Sampling_Date__DD_MM_YYYY_ LIKE '%/${y}'`);
+    }
+    return clauses.join(' OR ');
+  }
+  /* 單一泳灘的歷史序列查詢（不取幾何：每筆採樣的座標都相同，取幾何純屬浪費。
+     只在使用者於彈窗按下「歷史記錄」時才呼叫，故不影響載入時間。） */
+  function histBeachSeriesUrl(beachName) {
+    return arcLayerUrl('epd_rcd_1631502008200_88073', 0, {
+      where: `Beach_Name = '${String(beachName).replace(/'/g, "''")}' AND (${histBeachWhere()})`,
+      fields: 'OBJECTID,Beach_Name,Beach_Name__TC_,Sampling_Date__DD_MM_YYYY_,' +
+        'E__coli_count_per_100mL_on_the_sampling_date'
+    }) + '&returnGeometry=false&orderByFields=OBJECTID+DESC' +
+      `&resultRecordCount=${HIST_BEACH_POINTS}`;
+  }
 
   const DATA = {
     air: {
@@ -852,6 +1043,25 @@ body.has-subtabs .sub-caret { display: block; }
       // 2020 年高度為 4 米的 L10 (1 小時)噪音水平（CSDI 影像圖層）
       datasetKey: 'l10_2020',
       exportUrl: 'https://portal.csdi.gov.hk/server/rest/services/common/epd_rcd_1696985483224_32728/MapServer/export'
+    },
+    ev: {
+      // 公眾可使用的電動車充電器（CSDI 空間數據集）— 分頁抓取全部
+      datasetKey: 'evChargers',
+      url: arcQuery('epd_rcd_1631080339740_69941', 0, EV_FIELDS),
+      arcgis: true,
+      pageSize: 3000,
+      cacheKey: '公眾可使用的電動車充電器'
+    },
+    habitat: {
+      /* 環評報告中的生境圖（CSDI 空間數據集）— 16 個圖層，約 1.6 萬個要素。
+         每個圖層是一個生境類別；圖層名稱即類別，但要素另有 layercateg／
+         layername 欄位（各圖層大小寫不一），分類用後者較準確。
+         16 層原始資料約 15.3MB，故用 maxAllowableOffset 簡化幾何；
+         另外載入是「漸進式」的（先畫小圖層，大圖層陸續補上），
+         以免使用者要盯着空白地圖等十幾秒。不列入 prefetchRest()。 */
+      datasetKey: 'habitat',
+      arcgis: true,
+      pageSize: 3000
     }
   };
 
@@ -878,13 +1088,23 @@ body.has-subtabs .sub-caret { display: block; }
   const CLUSTER_THRESHOLD = 500;              // 超過 500 點自動聚合
   const DEBOUNCE_MS = 200;
 
+  /* 分頁列：顯示縮寫（short），完整名稱放在 title 與 aria-label。
+     英文全名太長會把分頁列擠爆，故一律用縮寫；滑鼠移過去顯示全名。
+     縮寫按語言不同：中文用中文短名，英文用英文縮寫。
+     註：加 short 屬性的分頁，其顯示文字不再跟隨 t('tabs.…')，故縮寫本身
+     不隨語言切換而改變（見 refreshTabLabels）。 */
   const TABS = [
-    { id: 'air',     icon: '🌬️' },
-    /* 「水質數據」分頁下有三個子分頁，各自是一個獨立圖層 */
-    { id: 'water',   icon: '💧', subs: ['beach', 'marine', 'river'] },
-    { id: 'recycle', icon: '♻️' },
-    { id: 'noise',   icon: '🔇' },
-    { id: 'cnp',     icon: '🚧' }
+    { id: 'air',     icon: '🌬️', short: { tc: '空氣',   en: 'HK·AQ' } },
+    /* 「水質數據」分頁下有三個子分頁，各自是一個獨立圖層。
+       註：過去泳灘水質數據不設子分頁 —— 它與「泳灘水質等級」是同一個位置的
+       同一批泳灘，獨立成一個圖層只會令載入時間變長（40 個泳灘序列）並重複
+       同一批標記。改為在泳灘彈窗內按「歷史記錄」即時查該泳灘的序列。 */
+    { id: 'water',   icon: '💧', short: { tc: '水質',   en: 'WQ' }, subs: ['beach', 'marine', 'river'] },
+    { id: 'recycle', icon: '♻️', short: { tc: '回收',   en: 'GC' } },
+    { id: 'ev',      icon: '🔌', short: { tc: '充電',   en: 'EV' } },
+    { id: 'noise',   icon: '🔇', short: { tc: '噪音',   en: 'LNRS' } },
+    { id: 'cnp',     icon: '🚧', short: { tc: '許可證', en: 'CNP' } },
+    { id: 'habitat', icon: '🌿', short: { tc: '生境',   en: 'EIA' } }
   ];
 
   /* 「水質數據」分頁的子分頁（同時就是圖層 id） */
@@ -895,7 +1115,7 @@ body.has-subtabs .sub-caret { display: block; }
     theme: 'light',
     active: 'air',              // 目前分頁 id（＝TABS 的 id）
     waterSub: 'beach',          // 「水質數據」分頁下選用的子分頁＝圖層 id
-    layers: { air: null, beach: null, marine: null, river: null, recycle: null, noise: null, cnp: null },
+    layers: { air: null, beach: null, marine: null, river: null, recycle: null, ev: null, noise: null, cnp: null, habitat: null },
     noiseSub: { lnrs: true, l10: false },
     errors: {},
     loaded: {},
@@ -1018,12 +1238,47 @@ body.has-subtabs .sub-caret { display: block; }
     return e;
   }
 
+  /* 對同一主機的並行請求上限，並限制「起跑速率」。
+     背景：生境圖一次過抓 16 個圖層、過去泳灘水質逐個泳灘抓 40 條序列，
+     全部同時打 portal.csdi.gov.hk 會觸發限流，連帶令其他圖層
+     （空氣質素、海水水質、建築噪音許可證、低噪音路面）出現「Failed to fetch」。
+     只設並行上限仍會出現突發（實測每次固定有 4 個請求失敗，數目與上限相同，
+     且每次失敗的圖層都不同），故再加上起跑間隔把請求攤開。 */
+  const CSDI_MAX_CONCURRENT = 4;
+  const CSDI_MIN_START_GAP_MS = 80;
+  const fetchQueue = { active: 0, waiting: [], nextStart: 0 };
+
+  function withFetchSlot(fn) {
+    return new Promise((resolve, reject) => {
+      const run = () => {
+        /* 攤開起跑時間：接連的請求至少相隔 CSDI_MIN_START_GAP_MS */
+        const now = Date.now();
+        const delay = Math.max(0, fetchQueue.nextStart - now);
+        fetchQueue.nextStart = Math.max(now, fetchQueue.nextStart) + CSDI_MIN_START_GAP_MS;
+        fetchQueue.active++;
+        setTimeout(() => {
+          Promise.resolve().then(fn).then(
+            (v) => { fetchQueue.active--; drainFetchQueue(); resolve(v); },
+            (e) => { fetchQueue.active--; drainFetchQueue(); reject(e); }
+          );
+        }, delay);
+      };
+      if (fetchQueue.active < CSDI_MAX_CONCURRENT) run();
+      else fetchQueue.waiting.push(run);
+    });
+  }
+  function drainFetchQueue() {
+    while (fetchQueue.active < CSDI_MAX_CONCURRENT && fetchQueue.waiting.length) {
+      fetchQueue.waiting.shift()();
+    }
+  }
+
   async function fetchJson(url, tries) {
-    const maxTries = tries || 6;
+    const maxTries = tries || 8;
     let lastErr;
     for (let i = 0; i < maxTries; i++) {
       try {
-        return await fetchJsonOnce(url);
+        return await withFetchSlot(() => fetchJsonOnce(url));
       } catch (e) {
         lastErr = e;
         if (!e.retriable || i === maxTries - 1) throw e;
@@ -1128,6 +1383,9 @@ body.has-subtabs .sub-caret { display: block; }
 
     if (!data) {
       data = cfg.arcgis ? await fetchArcLayer(cfg) : await fetchJson(cfg.url);
+      /* 註：只快取「非空」結果。過去泳灘水質的逐灘序列是這個圖層載入之後才抓的，
+         若抓取失敗，彈窗會明確顯示「載入失敗」，不會靜默當成沒有資料；
+         圖層本身在記憶體中已載入，同一 session 不會重複抓取。 */
       if (cfg.cacheKey && data.features && data.features.length) cache.set(cfg.cacheKey, data);
     }
     const ms = Math.round(performance.now() - started);
@@ -1293,6 +1551,20 @@ body.has-subtabs .sub-caret { display: block; }
      許可證類別以官方英文值作鍵（穩定），中文標籤用官方中文值。
      顏色只區分「類別」，不是評級；撞擊式打樁工程用較重的紅色，
      因為它是《噪音管制條例》下受更嚴格管制的工程類別。 */
+  /* 已簽發的建築噪音許可證：官方連結。
+     實測官方並無「以許可證編號直接開啟」的網址（逐一驗證，非猜測）：
+       - 數據集 URL 欄位 1,962 張全部相同，且只是 EPIC 搜尋頁的入口
+         （帶 JSF 的 execution 參數；無 cookie 時 302 循環，瀏覽器內可開）；
+       - EPIC「建築噪音許可證」搜尋頁（apps-construct）是公開頁面，但須過
+         驗證碼（BotDetect），且只可按類別／地區／日期／工地地址／承辦商搜尋，
+         並無「許可證編號」欄位 —— 無法用編號直達，亦無法以網址預填；
+       - data.gov.hk 的「API Available」只等於 CSDI 的 WFS／WMS／ArcGIS REST
+         （本圖層已在用），該圖層 hasAttachments=false，沒有許可證文件。
+     故彈窗只提供 EPIC 搜尋頁連結（唯一能實際查找／下載許可證的官方入口）。 */
+  /* 環保署 EPIC「建築噪音許可證」網上搜尋頁。
+     實測只有 ?lang=en 能穩定直達（其他 lang 值會 302 循環），
+     故一律指向英文版；使用者在該頁可自行切換繁體／簡體。 */
+  const CNP_SEARCH_URL = 'https://epic.epd.gov.hk/EFORMUPD/main/epic/apps-construct?lang=en';
   const CNP_TYPE_TC = {
     'General Construction Works': '一般建築工程',
     'Percussive Piling': '撞擊式打樁工程'
@@ -1351,6 +1623,197 @@ body.has-subtabs .sub-caret { display: block; }
     'Recycling Spots'
   ];
 
+  /* ---- 公眾可使用的電動車充電器 ----
+     數據集把充電器按「充電速度」（標準／中速／快速／高速）乘「插頭標準」交叉列表，
+     共 17 個 *_no 欄位，大部分為 0。只顯示大於 0 的組合，並依官方欄位順序排列，
+     不自行重新排序或加總成單一數字（官方沒有「總充電器數」這個欄位）。
+     注意欄位名有尾隨底線：MEDIUM_GB_T20234_2_AC__no、FAST_GB_T20234_3_DC__no、
+     REMARK_FOR__OTHERS_。 */
+  const EV_FIELDS_BY_SPEED = [
+    { speed: 'standard', fields: ['STANDARD_BS1363_no'] },
+    { speed: 'medium', fields: ['MEDIUM_IEC62196_no', 'MEDIUM_SAEJ1772_no', 'MEDIUM_CCS_DC_COMBO_no', 'MEDIUM_GB_T20234_2_AC__no', 'MEDIUM_OTHERS_no'] },
+    { speed: 'quick', fields: ['QUICK_CHAdeMO_no', 'QUICK_CCS_DC_COMBO_no', 'QUICK_IEC62196_no', 'QUICK_GB_T20234_3_DC__no', 'QUICK_OTHERS_no'] },
+    { speed: 'fast', fields: ['FAST_CHAdeMO_no', 'FAST_CCS_DC_COMBO_no', 'FAST_GB_T20234_3_DC__no', 'FAST_OTHERS_no'] }
+  ];
+  /* 速度 → 顏色。只用於區分「速度」這個類別，不是評級。 */
+  const EV_SPEED_COLOR = { standard: '#455a64', medium: '#00796b', quick: '#1565c0', fast: '#6a1b9a' };
+  const EV_SPEED_TEXT = { standard: '#ffffff', medium: '#ffffff', quick: '#ffffff', fast: '#ffffff' };
+  /* 官方欄位名 → 插頭標準的顯示名稱（取官方欄位名的中段，去掉速度前綴與 _no 後綴） */
+  function evStandardKey(field) {
+    return field.replace(/^(STANDARD|MEDIUM|QUICK|FAST)_/, '').replace(/_+no$/, '');
+  }
+  /* 回傳 [[speed, standardKey, count], ...]，只含 count > 0，順序依官方欄位順序。 */
+  function evConnectors(p) {
+    const out = [];
+    EV_FIELDS_BY_SPEED.forEach((grp) => {
+      grp.fields.forEach((f) => {
+        const raw = p[f];
+        if (raw == null || String(raw).trim() === '') return;
+        const n = Number(raw);
+        if (!isFinite(n) || n <= 0) return;
+        out.push([grp.speed, evStandardKey(f), n]);
+      });
+    });
+    return out;
+  }
+  /* 總充電器數（僅用於 tooltip／排序顯示，UI 上必須說明是自行加總） */
+  function evTotal(p) {
+    return evConnectors(p).reduce((a, c) => a + c[2], 0);
+  }
+  function evLocation(p) {
+    return state.lang === 'tc'
+      ? (p.LOCATION_TC || p.LOCATION_EN)
+      : (p.LOCATION_EN || p.LOCATION_TC);
+  }
+  function evAddress(p) {
+    return state.lang === 'tc'
+      ? (p.ADDRESS_TC || p.ADDRESS_EN)
+      : (p.ADDRESS_EN || p.ADDRESS_TC);
+  }
+  function evDistrict(p) {
+    return state.lang === 'tc'
+      ? (p.NAME_OF_DISTRICT_COUNCIL_DISTRICT_TC || p.NAME_OF_DISTRICT_COUNCIL_DISTRICT_EN)
+      : (p.NAME_OF_DISTRICT_COUNCIL_DISTRICT_EN || p.NAME_OF_DISTRICT_COUNCIL_DISTRICT_TC);
+  }
+
+  /* ---- 實時可用情況 ----
+     官方實時檔案（ev-charger.epd.gov.hk 的 evca_ver_1_0.json，約 3.8MB）
+     對任何 Origin 都不回 Access-Control-Allow-Origin，OPTIONS 更回 405，
+     故靜態網頁無法直接抓取（已逐項實測確認，非猜測）。
+     解決方法：由建置腳本（tools/build-ev-availability.mjs，可經 GitHub Actions
+     定時執行）在瀏覽器以外抓取，縮減後寫成同源的 data/ev-availability.json，
+     網頁只讀自己的檔案，因此沒有跨網域問題。
+     注意 data/ev-availability.json 不存在時（例如未設定 Action）會靜靜降級為
+     只顯示靜態數目，並保留連到官方查詢頁的連結。 */
+  const EV_AVAIL_LOCAL = 'data/ev-availability.json';
+  let evAvailIndex = null;      // Map<coordKey, record>
+  let evAvailMeta = null;       // 快照中繼資料
+
+  /* 必須與 tools/build-ev-availability.mjs 的 coordKey() 完全一致 */
+  const evCoordKey = (lat, lng) => Number(lat).toFixed(5) + ',' + Number(lng).toFixed(5);
+
+  /* 抓取同源快照。改為「按需要」才抓（第一次開彈窗時），
+     不再在載入圖層時一併下載 —— 實測該檔約 156KB，對首次顯示圖層是純粹的延遲。
+     失敗時回傳 null 並降級為只顯示靜態數目。 */
+  let evAvailPromise = null;
+
+  function ensureEvAvail() {
+    if (evAvailPromise) return evAvailPromise;
+    evAvailPromise = fetchJson(EV_AVAIL_LOCAL).then((j) => {
+      const map = new Map();
+      const byCoord = (j && j.byCoord) || {};
+      Object.keys(byCoord).forEach((k) => map.set(k, byCoord[k]));
+      evAvailIndex = map;
+      evAvailMeta = {
+        generatedAt: j && j.generatedAt,
+        upstreamLastUpdate: j && j.upstreamLastUpdate,
+        withAvailability: j && j.withAvailability
+      };
+      console.info(`[電動車] 實時快照：${map.size} 個位置，` +
+        `${evAvailMeta.withAvailability} 個有官方實時數字（快照時間 ${evAvailMeta.generatedAt}）`);
+      return map;
+    }).catch((e) => {
+      console.warn('[電動車] 未找到實時快照，只顯示靜態數目：', e && e.message);
+      evAvailIndex = null;
+      return null;
+    });
+    return evAvailPromise;
+  }
+
+  function evAvailFor(latlng) {
+    if (!evAvailIndex || !latlng) return null;
+    return evAvailIndex.get(evCoordKey(latlng.lat, latlng.lng)) || null;
+  }
+  /* 沒有快照時的唯一退路：連到官方查詢頁（該頁不經 CORS，可直接瀏覽） */
+  const EV_OFFICIAL_URL = 'https://ev-charger.epd.gov.hk/';
+
+  /* ---- 過去泳灘水質數據 ----
+     關鍵：數據集有 63,099 筆，但「每個泳灘只有一個固定座標」——
+     實測 10 年 16,324 筆採樣只對應 43 個不同的東／北座標（即 43 個泳灘）。
+     所以把每筆採樣都畫成一個標記是錯的：只會在同一點上疊 300 多個標記，
+     既令地圖變成無意義的大數字，又要傳 7MB 資料。
+     正確做法：每個泳灘一個標記，彈窗顯示該泳灘的歷史大腸桿菌數列。
+     官方只有大腸桿菌實測值，並無等級評級，故不按數值自行評級上色。 */
+  const HIST_BEACH_COLOR = '#0277bd';
+  const HIST_BEACH_TEXT = '#ffffff';
+
+  /* "7/4/1986" → Date（日/月/年）；直接 new Date() 會當成美式 MM/DD 而錯置月份 */
+  function histBeachParseDate(v) {
+    const m = String(v || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return null;
+    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function histBeachDateStr(v) {
+    const d = histBeachParseDate(v);
+    return d ? fmtDate(d) : null;
+  }
+  /* 大腸桿菌數目（每 100 毫升）。官方為字串，可能是「<10」這種低於檢測限的值，
+     必須原樣顯示與比較，不可強轉數字後當成一般數值。 */
+  function histBeachEcoli(p) {
+    const v = p.E__coli_count_per_100mL_on_the_sampling_date;
+    return v == null || String(v).trim() === '' ? null : String(v).trim();
+  }
+  /* 取數值版本（「<10」當作 10 畫圖，但文字仍原樣顯示） */
+  function histBeachNum(txt) {
+    if (txt == null) return null;
+    const m = String(txt).match(/(\d+(?:\.\d+)?)/);
+    return m ? Number(m[1]) : null;
+  }
+
+  /* 歷史序列快取（鍵為官方英文泳灘名）與載入狀態，全部按需要才抓取。
+     因為改為在使用者按「歷史記錄」時才查單一泳灘，故不會拖慢載入。 */
+  const beachHistoryCache = {};   // key → { status: 'loading'|'ok'|'error', series: [] }
+
+  /* ---- 環評報告中的生境圖 ----
+     16 個圖層各代表一個生境類別。顏色只用於區分生境類別，不是評級。
+     類別鍵取自要素的 layercateg（注意各圖層大小寫不一致：
+     L1 用 layercateg，L11 用 LayerCateg），故比對前一律轉小寫。
+     size ＝ 實測的傳輸大小（MB，offset=0.00005／precision=5），
+     只用於決定「先載入哪幾層」——先畫細層，最快見到東西。 */
+  const HABITAT_LAYERS = [
+    { id: 1,  key: 'woodland',            tc: '林地',            color: '#1b5e20', size: 1.30 },
+    { id: 8,  key: 'shrubland',           tc: '灌木林',          color: '#558b2f', size: 0.32 },
+    { id: 12, key: 'grasslandshrubland',  tc: '草地／灌木地',     color: '#9ccc65', size: 0.90 },
+    { id: 13, key: 'grassland',           tc: '草地',            color: '#c5e1a5', size: 0.00 },
+    { id: 6,  key: 'uplandgrassland',     tc: '高地草原',         color: '#dcedc8', size: 0.02 },
+    { id: 2,  key: 'wetland',             tc: '濕地',            color: '#00838f', size: 0.17 },
+    { id: 11, key: 'marsh',               tc: '沼澤',            color: '#00695c', size: 0.24 },
+    { id: 9,  key: 'pond',                tc: '魚塘／水塘',       color: '#26c6da', size: 0.39 },
+    { id: 3,  key: 'watercourse',         tc: '水道',            color: '#1565c0', size: 1.29 },
+    { id: 0,  key: 'seasonalwatercourse', tc: '季節性水道',       color: '#42a5f5', size: 0.99 },
+    { id: 15, key: 'agriculturalland',    tc: '農地',            color: '#f9a825', size: 0.00 },
+    { id: 10, key: 'plantation',          tc: '人工林',          color: '#33691e', size: 0.00 },
+    { id: 5,  key: 'villagearea',         tc: '鄉村範圍',         color: '#8d6e63', size: 0.50 },
+    { id: 14, key: 'developedarea',       tc: '已發展地區',       color: '#90a4ae', size: 1.75 },
+    { id: 4,  key: 'wasteland',           tc: '荒地',            color: '#a1887f', size: 0.53 },
+    { id: 7,  key: 'sssi',                tc: '具特殊科學價值地點', color: '#d81b60', size: 0.00 }
+  ];
+  const HABITAT_FALLBACK_COLOR = '#78909c';
+
+  function habitatLayerDef(layerId) {
+    return HABITAT_LAYERS.filter((h) => h.id === layerId)[0] || null;
+  }
+  /* 生境類別鍵（小寫）；優先用要素的 layercateg，沒有才回退圖層名稱 */
+  function habitatCatKey(p) {
+    const raw = p.layercateg || p.LayerCateg || p.layername || p.LayerName || '';
+    return String(raw).toLowerCase().replace(/[^a-z]/g, '');
+  }
+  function habitatColor(layerId, p) {
+    const byCat = HABITAT_LAYERS.filter((h) => h.key === habitatCatKey(p))[0];
+    if (byCat) return byCat.color;
+    const byLayer = habitatLayerDef(layerId);
+    return byLayer ? byLayer.color : HABITAT_FALLBACK_COLOR;
+  }
+  function habitatLabel(layerId, p) {
+    if (state.lang === 'tc') {
+      const byCat = HABITAT_LAYERS.filter((h) => h.key === habitatCatKey(p))[0];
+      if (byCat) return byCat.tc;
+    }
+    const raw = p.layername || p.LayerName || p.layercateg || p.LayerCateg || '';
+    return String(raw).trim() || (habitatLayerDef(layerId) ? habitatLayerDef(layerId).tc : '');
+  }
+
   /* ======================================================================
      8. 標記圖示
      ====================================================================== */
@@ -1363,7 +1826,6 @@ body.has-subtabs .sub-caret { display: block; }
       popupAnchor: [0, -22]
     });
   }
-
   /* ======================================================================
      9. Popup 內容
      ====================================================================== */
@@ -1382,6 +1844,11 @@ body.has-subtabs .sub-caret { display: block; }
 
   function row(label, valueHtml) {
     return `<div class="cp-row"><span class="cp-label">${esc(label)}</span><span class="cp-value">${valueHtml}</span></div>`;
+  }
+
+  /* 標籤與內容上下堆疊的列（內容遠比標籤長時使用，避免擠出卡片外） */
+  function rowStack(label, valueHtml) {
+    return `<div class="cp-row cp-row--stack"><span class="cp-label">${esc(label)}</span><span class="cp-value">${valueHtml}</span></div>`;
   }
 
   /* ---- 空氣質素 Popup ---- */
@@ -1420,14 +1887,31 @@ body.has-subtabs .sub-caret { display: block; }
     const gradeLabel = g ? t('legend.' + BEACH_LEGEND_KEY[g]) : t('legend.notOpen');
     // 色碼以 inline style 套用 → 徽章、圖例色塊、地圖標記共用同一份 BEACH_COLOR
     const badge = `<span class="badge" style="background:${color};color:${textColor}">${esc(gradeLabel)}</span>`;
+    const key = String(p.Beach || '').trim();
+    const view = beachHistoryView[key] || 'grade';
     let rows = '';
     // 地區：數據集並無此欄位，由對照表提供（詳見 BEACH_DISTRICT 註解）
     const dist = beachDistrict(p);
     if (dist) rows += row(t('popup.district'), esc(districtLabel(dist)));
-    rows += row(t('popup.waterQuality'),
-      badge + ' <span class="cp-sub">' + esc(gradeRaw || '—') + '</span>');
-    // 官方數據集沒有採樣日期 → 誠實標示，不憑空生成
-    rows += row(t('popup.sampleDate'), `<span class="cp-sub">${esc(t('ui.noSamplingDate'))}</span>`);
+
+    /* 兩個檢視共用同一個彈窗（同一批泳灘、同一個位置，故不另設分頁）：
+       「水質等級」＝官方最新等級；「歷史記錄」＝該泳灘的大腸桿菌數列圖。 */
+    const tabs = `<div class="cp-tabs">
+      <button type="button" class="cp-tab${view === 'grade' ? ' is-on' : ''}"
+              data-bh-view="grade">${esc(t('ui.beachTabGrade'))}</button>
+      <button type="button" class="cp-tab${view === 'history' ? ' is-on' : ''}"
+              data-bh-view="history">${esc(t('ui.beachTabHistory'))}</button>
+    </div>`;
+    rows += rowStack(t('ui.beachViewLabel'), tabs);
+
+    if (view === 'history') {
+      rows += beachHistorySection(p);
+    } else {
+      rows += row(t('popup.waterQuality'),
+        badge + ' <span class="cp-sub">' + esc(gradeRaw || '—') + '</span>');
+      // 官方數據集沒有採樣日期 → 誠實標示，不憑空生成
+      rows += row(t('popup.sampleDate'), `<span class="cp-sub">${esc(t('ui.noSamplingDate'))}</span>`);
+    }
     rows += row(t('ui.dataFetched'), esc(state.meta.beach || fmtDateTime(new Date())));
     const link = p.link_beach
       ? `<a href="${esc(p.link_beach)}" target="_blank" rel="noopener">EPD 泳灘水質報告</a>`
@@ -1436,6 +1920,36 @@ body.has-subtabs .sub-caret { display: block; }
     return popupShell(name || '—', desc, rows,
       esc(t('popup.lastUpdate')) + '：' + esc(state.meta.beach || fmtDateTime(new Date())) +
       (link ? ' | ' + link : ''));
+  }
+
+  /* 泳灘彈窗內的檢視切換（事件委派）。
+     Leaflet 的彈窗內容是惰性求值的函式，改狀態後不會自動重畫，
+     故這裡主動關閉再重新開啟同一個標記，讓它依新狀態重新產生內容。
+
+     取回泳灘圖層用 map._popup._source —— 實測它就是該泳灘的圖層物件。
+     不可用 DOM 元素的 _leaflet_id 反查：泳灘標記放在 markerClusterGroup 內，
+     DOM 上的 id 屬於叢集的代理標記，與圖層 id 不同（實測 DOM=1941、圖層=190）。 */
+  function onMapPopupClick(e) {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-bh-view]') : null;
+    if (!btn || !e.target.closest('#map')) return;
+    const layer = map && map._popup && map._popup._source;
+    if (!layer || !layer.getLatLng || !layer.feature) return;
+
+    const view = btn.getAttribute('data-bh-view');
+    const key = String((layer.feature.properties || {}).Beach || '').trim();
+    if (!key) return;
+    beachHistoryView[key] = view;
+
+    if (view === 'history' && !beachHistoryCache[key]) {
+      /* 進入歷史檢視時才查該泳灘的序列；查完若仍停在歷史檢視就重畫 */
+      loadBeachHistory(key).then(() => {
+        if (beachHistoryView[key] !== 'history') return;
+        layer.closePopup();
+        layer.openPopup();
+      });
+    }
+    layer.closePopup();
+    layer.openPopup();
   }
 
   /* ---- 近期海水／河溪水質數據 Popup ---- */
@@ -1480,7 +1994,10 @@ body.has-subtabs .sub-caret { display: block; }
       rows += row(t('popup.permitType'),
         `<span class="badge" style="background:${color};color:${textColor}">${esc(type)}</span>`);
     }
-    if (p.PERMIT_NO) rows += row(t('popup.permitNo'), esc(String(p.PERMIT_NO).trim()));
+    if (p.PERMIT_NO) {
+      rows += row(t('popup.permitNo'),
+        `<span class="cp-permit-no">${esc(String(p.PERMIT_NO).trim())}</span>`);
+    }
     if (p.ISSUE_ON) rows += row(t('popup.issueOn'), esc(String(p.ISSUE_ON).slice(0, 10)));
     if (p.VALIDITY) rows += row(t('popup.validity'), esc(String(p.VALIDITY).trim()));
     const st = cnpStatus(p);
@@ -1488,14 +2005,191 @@ body.has-subtabs .sub-caret { display: block; }
     if (permittee) rows += row(t('popup.permittee'), esc(permittee));
     if (addr) rows += row(t('popup.siteAddress'), `<span class="cp-address">${esc(addr)}</span>`);
     if (dist) rows += row(t('popup.district'), esc(dist));
-    rows += row(t('ui.dataFetched'), esc(state.meta.cnp || fmtDateTime(new Date())));
-    const link = p.URL
-      ? `<a href="${esc(p.URL)}" target="_blank" rel="noopener">${esc(t('datasetNames.cnp'))}</a>`
-      : '';
+      rows += row(t('ui.dataFetched'), esc(state.meta.cnp || fmtDateTime(new Date())));
+
+    /* 官方並無可顯示「個別」許可證的網址，故彈窗只提供 EPIC 搜尋頁連結
+       （唯一能實際查找／下載許可證的官方入口）；許可證編號只作顯示，不作連結。
+       1. 數據集內的 URL 欄位：1,962 張許可證全部是同一個 EPIC 搜尋頁入口
+          （帶 JSF 的 execution 參數），並非個別許可證的連結。
+       2. EPIC 的「建築噪音許可證」搜尋頁：是公開頁面，但須過驗證碼
+          （BotDetect），且只可按類別／地區／日期／工地地址／承辦商搜尋，
+          沒有「許可證編號」欄位 —— 無法用編號直達，也不能以網址預填。
+       3. CSDI／data.gov.hk 的 API 只提供 WFS／WMS／ArcGIS REST（本圖層已在用），
+          該圖層 hasAttachments=false，沒有許可證文件。 */
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.cnp'))}</p>`;
+    const search = `<a href="${CNP_SEARCH_URL}" target="_blank" rel="noopener">` +
+      `${esc(t('ui.cnpSearchLink'))}</a>`;
     return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), desc, rows,
       esc(t('popup.lastUpdate')) + '：' + esc(state.meta.cnp || fmtDateTime(new Date())) +
-      (link ? ' | ' + link : ''));
+      ' | ' + search);
+  }
+
+  /* ---- 公眾可使用的電動車充電器 Popup ---- */
+  function evPopup(p, latlng) {
+    const loc = evLocation(p);
+    const addr = evAddress(p);
+    const dist = evDistrict(p);
+    const conns = evConnectors(p);
+    const avail = evAvailFor(latlng);
+    let rows = '';
+    if (dist) rows += row(t('popup.district'), esc(String(dist).trim()));
+    if (addr) rows += row(t('popup.address'), `<span class="cp-address">${esc(String(addr).trim())}</span>`);
+    /* 逐個「速度 × 插頭標準」列出官方靜態數目，不自行加總成單一數字。
+       內容遠比標籤長，故用上下堆疊的列，每個徽章獨立一行，避免擠出卡片。 */
+    if (conns.length) {
+      rows += rowStack(t('popup.chargers'),
+        `<span class="cp-chargers">${conns.map(([speed, std, n]) =>
+          `<span class="badge" style="background:${EV_SPEED_COLOR[speed] || CNP_COLOR_FALLBACK};` +
+          `color:${EV_SPEED_TEXT[speed] || '#ffffff'}">${esc(t('ev.speed.' + speed))} · ${esc(std)} · ` +
+          `${esc(n)}</span>`).join('')}</span>`);
+      rows += row(t('popup.chargerTotal'), esc(String(evTotal(p))));
+    } else {
+      rows += rowStack(t('popup.chargers'), '—');
+    }
+    /* 實時可用情況：來自同源快照（見 ensureEvAvail）。
+       官方只為部分位置提供數字；未提供時明說，不假造 0。 */
+    if (avail) {
+      if (avail.available == null) {
+        rows += row(t('popup.availability'),
+          `<span class="cp-sub">${esc(t('ui.evAvailNotProvided'))}</span>`);
+      } else {
+        const free = Number(avail.available);
+        rows += row(t('popup.availability'),
+          `<span class="badge ${free > 0 ? 'aqhi-1' : 'aqhi-4'}">` +
+          `${esc(free)}${avail.total == null ? '' : ' / ' + esc(avail.total)}</span>`);
+      }
+      if (avail.updated) rows += row(t('popup.availUpdated'), esc(String(avail.updated)));
+    } else if (evAvailPromise && !evAvailIndex) {
+      /* 沒有快照檔（例如未設定定時更新）→ 誠實說明並提供官方連結 */
+      rows += row(t('popup.availability'),
+        `<a href="${EV_OFFICIAL_URL}" target="_blank" rel="noopener">${esc(t('ui.evAvailabilityLink'))}</a>`);
+    }
+    rows += row(t('ui.dataFetched'), esc(state.meta.ev || fmtDateTime(new Date())));
+    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.evChargers'))}</p>`;
+    return popupShell(loc || t('datasetNames.evChargers'), desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.ev || fmtDateTime(new Date())) +
+      '<br>' + esc(t('ui.evNote')));
+  }
+
+  /* ---- 過去泳灘水質 Popup（含大腸桿菌數列圖） ---- */
+  /* 大腸桿菌水平 → 官方泳灘等級色盤的級別（僅用於配色，非官方評級） */
+  function beachGradeFromEcoli(n) {
+    if (n == null || !isFinite(n)) return null;
+    if (n <= 24) return 1;
+    if (n <= 179) return 2;
+    if (n <= 609) return 3;
+    return 4;
+  }
+  /* 把序列畫成簡單長條圖（純 SVG，不引入圖表庫）。
+     顏色沿用官方泳灘等級色盤（該色盤本身即按大腸桿菌水平劃分）；
+     圖例與彈窗都註明官方並無為歷史數據評級，避免誤讀成官方等級。 */
+  function histBeachChart(series) {
+    if (!series || !series.length) return '';
+    const nums = series.map((s) => histBeachNum(s.ecoli) || 0);
+    const max = Math.max.apply(null, nums.concat([1]));
+    /* 點數多時自動收窄長條：96 點仍要落在同一個寬度內 */
+    const W = 268, H = 64;
+    const gap = series.length > 60 ? 1 : 2;
+    const bw = Math.max(1.5, (W - gap * (series.length - 1)) / series.length);
+    const bars = series.map((s, i) => {
+      const v = nums[i];
+      const h = Math.max(1, Math.round((v / max) * (H - 6)));
+      const g = beachGradeFromEcoli(v);
+      const c = (g && BEACH_COLOR[g]) || HIST_BEACH_COLOR;
+      const x = i * (bw + gap);
+      return `<rect x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" ` +
+        `height="${h}" fill="${c}"></rect>`;
+    }).join('');
+    /* 序列已按 OBJECTID 由新至舊排序，故最舊的在陣列末端 */
+    const oldest = series[series.length - 1], newest = series[0];
+    const spanDays = (() => {
+      const a = histBeachParseDate(oldest.rawDate), b = histBeachParseDate(newest.rawDate);
+      return (a && b) ? Math.round((b - a) / 86400000) : null;
+    })();
+    return `<div class="hb-chart">
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+           aria-label="${esc(t('popup.histTrend'))}">${bars}</svg>
+      <div class="hb-axis">
+        <span>${esc(oldest.dateStr || '')}</span>
+        <span>${spanDays == null ? '' : esc(t('popup.histSpan').replace('{n}', String(spanDays)))}</span>
+        <span>${esc(newest.dateStr || '')}</span>
+      </div>
+    </div>`;
+  }
+
+  /* 按需要抓取單一泳灘的歷史序列（只在使用者按下「歷史記錄」時呼叫）。
+     快取在記憶體，同一泳灘再開不會重複查詢。 */
+  function loadBeachHistory(key) {
+    const cached = beachHistoryCache[key];
+    if (cached) return Promise.resolve(cached);
+    const entry = { status: 'loading', series: [] };
+    beachHistoryCache[key] = entry;
+    return fetchJson(histBeachSeriesUrl(key)).then((j) => {
+      const feats = (j && j.features) || [];
+      entry.series = feats.map((ft) => {
+        const a = ft.attributes || ft.properties || {};
+        const raw = a.Sampling_Date__DD_MM_YYYY_;
+        return { ecoli: histBeachEcoli(a), rawDate: raw, dateStr: histBeachDateStr(raw) };
+      });
+      entry.status = 'ok';
+      return entry;
+    }).catch((e) => {
+      console.warn(`[泳灘歷史] ${key} 查詢失敗：`, e);
+      entry.status = 'error';
+      return entry;
+    });
+  }
+
+  /* 歷史記錄檢視（彈窗內切換） */
+  const beachHistoryView = {};
+
+  function beachHistorySection(p) {
+    const key = String(p.Beach || '').trim();
+    const entry = beachHistoryCache[key];
+    if (!entry || entry.status === 'loading') {
+      return rowStack(t('popup.histTrend'),
+        `<span class="cp-sub">${esc(t('ui.histBeachLoading'))}</span>`);
+    }
+    if (entry.status === 'error') {
+      return rowStack(t('popup.histTrend'),
+        `<span class="cp-sub">${esc(t('ui.histBeachLoadFailed'))}</span>`);
+    }
+    const series = entry.series;
+    if (!series.length) {
+      return rowStack(t('popup.histTrend'),
+        `<span class="cp-sub">${esc(t('ui.histBeachNoData'))}</span>`);
+    }
+    const latest = series[0];
+    const nums = series.map((s) => histBeachNum(s.ecoli)).filter((v) => v != null);
+    const avg = nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : null;
+    const peak = nums.length ? Math.max.apply(null, nums) : null;
+    let rows = rowStack(t('popup.histTrend'), histBeachChart(series));
+    const g = beachGradeFromEcoli(histBeachNum(latest.ecoli));
+    rows += row(t('popup.ecoliLatest'),
+      latest.ecoli == null ? '—'
+        : `<span class="badge" style="background:${(g && BEACH_COLOR[g]) || HIST_BEACH_COLOR};` +
+          `color:${(g && BEACH_TEXT[g]) || HIST_BEACH_TEXT}">${esc(latest.ecoli)}</span>`);
+    if (latest.dateStr) rows += row(t('popup.samplingDate'), esc(latest.dateStr));
+    rows += row(t('popup.histSamples'), esc(String(series.length)));
+    if (avg != null) rows += row(t('popup.histAvg'), esc(String(avg)));
+    if (peak != null) rows += row(t('popup.histPeak'), esc(String(peak)));
+    return rows;
+  }
+
+  /* ---- 環評生境圖 Popup ---- */
+  function habitatPopup(p, layerId) {
+    const proj = p.Project || p.project || '';
+    const report = p.reportname || p.ReportName || '';
+    const district = p.district || p.District || '';
+    const label = habitatLabel(layerId, p);
+    let rows = '';
+    if (label) rows += row(t('popup.habitatType'), esc(label));
+    if (proj) rows += row(t('popup.eiaProject'), esc(proj));
+    if (report) rows += row(t('popup.eiaReport'), esc(report));
+    if (district) rows += row(t('popup.district'), esc(district));
+    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.habitat'))}</p>`;
+    return popupShell(label || proj || t('datasetNames.habitat'), desc, rows,
+      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.habitat || fmtDateTime(new Date())));
   }
 
   /* ---- 回收點 Popup ---- */
@@ -1707,6 +2401,140 @@ body.has-subtabs .sub-caret { display: block; }
     return clusterIfNeeded(group, layer.getLayers().length);
   }
 
+  /* ---- 公眾可使用的電動車充電器圖層 ---- */
+  async function loadEvLayer() {
+    const geo = await getLayerData('ev');
+    const group = makeClusterGroup();
+    const layer = L.geoJSON(geo, {
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        /* 顏色依「最快的充電速度」決定：快速 > 中速 > 標準。
+           這是把官方已有的分類映射成單一顏色，不是自行評級。 */
+        const conns = evConnectors(p);
+        const order = ['standard', 'medium', 'quick', 'fast'];
+        let speed = null;
+        conns.forEach((c) => { if (order.indexOf(c[0]) > order.indexOf(speed)) speed = c[0]; });
+        lyr.setIcon(pinIcon(EV_SPEED_COLOR[speed] || EV_SPEED_COLOR.standard, '🔌'));
+        /* 彈窗延遲求值時一併傳入座標，實時數字由座標對照快照取得 */
+        lyr.bindPopup(() => evPopup(p, lyr.getLatLng()), { maxWidth: 320, autoPan: true, autoPanPadding: [30, 60] });
+        /* 實時快照按需要才抓：第一次開啟彈窗時下載（約 156KB，其後由快取提供）。
+           抓完若使用者仍看着這個彈窗，就地重畫以顯示實時數字。 */
+        lyr.on('popupopen', () => {
+          if (evAvailIndex || evAvailPromise) return;
+          const availLoaded = ensureEvAvail();
+          availLoaded.then(() => {
+            if (lyr.isPopupOpen && lyr.isPopupOpen()) {
+              lyr.closePopup();
+              lyr.openPopup();
+            }
+          });
+        });
+        // tooltip 延遲求值，避免切換語言後殘留舊語言
+        lyr.bindTooltip(() => {
+          const loc = evLocation(p);
+          const total = evTotal(p);
+          return esc([String(loc || '').trim(), total ? `${total} × 🔌` : null].filter(Boolean).join(' · '));
+        }, { direction: 'top', offset: [0, -20] });
+      },
+      filter: (f) => f.geometry && f.geometry.type === 'Point'
+    });
+    layer.eachLayer((l) => group.addLayer(l));
+    state.meta.ev = fmtDateTime(new Date());
+    return clusterIfNeeded(group, layer.getLayers().length);
+  }
+
+  /* 環評報告生境圖（16 個圖層：多邊形 + 季節性水道線）。
+     每層各自一個查詢（圖層 id 不同），並用 maxAllowableOffset 簡化幾何，
+     否則 16 層原始資料約 15.3MB，實測會令瀏覽器 fetch 失敗。 */
+  const HABITAT_DS = 'epd_rcd_1696985725838_7798';
+  const HABITAT_GEOM_OFFSET = 0.00005;   // 約 5 米
+  const HABITAT_PRECISION = 5;
+
+  async function fetchArcLayerByUrl(url) {
+    const out = [];
+    let offset = 0;
+    const page = DATA.habitat.pageSize || 3000;
+    for (let guard = 0; guard < 40; guard++) {
+      const esri = await fetchJson(url + `&resultOffset=${offset}&resultRecordCount=${page}`);
+      const fc = esriToGeoJson(esri);
+      out.push(...fc.features);
+      const more = esri.exceededTransferLimit === true && fc.features.length >= page;
+      if (!more) break;
+      offset += page;
+    }
+    return { type: 'FeatureCollection', features: out };
+  }
+
+  function buildHabitatSubLayer(fc, layerId) {
+    const isLine = layerId === 0;   // SeasonalWatercourse 是線狀
+    const sub = L.geoJSON(fc, {
+      style: (f) => {
+        const c = habitatColor(layerId, f.properties || {});
+        return isLine
+          ? { color: c, weight: 2, opacity: 0.9 }
+          : { color: c, weight: 1, opacity: 0.85, fillColor: c, fillOpacity: 0.45 };
+      },
+      onEachFeature: (feature, lyr) => {
+        const p = feature.properties || {};
+        lyr.bindPopup(() => habitatPopup(p, layerId), { maxWidth: 320, autoPan: true, autoPanPadding: [30, 60] });
+        lyr.bindTooltip(() => esc(habitatLabel(layerId, p)), { sticky: true });
+      }
+    });
+    sub._habitatLayerId = layerId;   // 供圖例統計生境類別
+    return sub;
+  }
+
+  /* 生境圖：漸進式載入。
+     16 層合共約 8.4MB，全部並行抓再一次過繪製，使用者要對着空白地圖等很久，
+     看起來像當掉。改為：
+       1. 先抓最細的幾層（合共 <0.3MB），通常 1 秒內就有東西畫出來；
+       2. 其餘圖層以小量並行陸續補上，每完成一層就即刻畫到地圖上。
+     由於 loadHabitatLayer 會立即回傳（不等待），切換分頁不會被阻塞。 */
+  const HABITAT_EAGER_COUNT = 6;   // 先載入最細的 6 層
+
+  async function loadHabitatLayer() {
+    const wrapper = L.layerGroup();
+    wrapper._habitatCount = 0;
+    wrapper._habitatDone = 0;
+    wrapper._habitatTotal = HABITAT_LAYERS.length;
+    state.meta.habitat = fmtDateTime(new Date());
+
+    /* 由細至大排序：先畫細層，最快見到東西 */
+    const ordered = HABITAT_LAYERS.slice().sort((a, b) => (a.size || 0) - (b.size || 0));
+    const eager = ordered.slice(0, HABITAT_EAGER_COUNT);
+    const rest = ordered.slice(HABITAT_EAGER_COUNT);
+
+    const loadOne = async (h) => {
+      try {
+        const fc = await fetchArcLayerByUrl(arcLayerUrl(HABITAT_DS, h.id, {
+          fields: HABITAT_FIELDS,
+          offset: HABITAT_GEOM_OFFSET,
+          precision: HABITAT_PRECISION
+        }));
+        if (!fc.features.length) return;
+        wrapper.addLayer(buildHabitatSubLayer(fc, h.id));
+        wrapper._habitatCount += fc.features.length;
+        wrapper._habitatDone++;
+        /* 每加完一層就更新圖例，令已載入的類別即時出現 */
+        if (state.active === 'habitat') renderLegend();
+      } catch (e) {
+        console.warn(`[生境圖] 圖層 ${h.id}（${h.tc}）載入失敗：`, e);
+      }
+    };
+
+    /* 背景進行，不阻塞 activate() */
+    (async () => {
+      await Promise.all(eager.map(loadOne));
+      console.info(`[生境圖] 首批 ${eager.length} 層完成，${wrapper._habitatCount} 個要素`);
+      /* 其餘以小量並行（fetchJson 內部已有主機層面的排隊與間隔） */
+      await Promise.all(rest.map(loadOne));
+      console.info(`[生境圖] 全部完成：${wrapper._habitatCount} 個要素（${wrapper._habitatDone}/${wrapper._habitatTotal} 層）`);
+      if (state.active === 'habitat') renderLegend();
+    })();
+
+    return wrapper;
+  }
+
   /* ---- 低噪音路面圖層（線）+ L10 影像（可選） ---- */
   async function loadNoiseLayer() {
     const geo = await getLayerData('lnrs');
@@ -1794,6 +2622,31 @@ body.has-subtabs .sub-caret { display: block; }
       ],
       note: t('datasetDescriptions.riverWater') + '<br><br>' + t('ui.waterParamNote')
     }),
+    habitat: () => {
+      /* 圖例由已載入的資料統計出來：只列出實際出現的生境類別 */
+      const present = {};
+      const grp = layers.habitat;
+      if (grp && grp.eachLayer) {
+        grp.eachLayer((sub) => {
+          if (sub._habitatLayerId == null || !sub.eachLayer) return;
+          sub.eachLayer((l) => {
+            const p = l.feature && l.feature.properties;
+            if (!p) return;
+            const key = habitatCatKey(p);
+            if (key) present[key] = sub._habitatLayerId;
+          });
+        });
+      }
+      const keys = Object.keys(present);
+      const rows = (keys.length ? HABITAT_LAYERS.filter((h) => keys.indexOf(h.key) >= 0)
+                               : HABITAT_LAYERS)
+        .map((h) => ({ type: 'dot', color: h.color, label: state.lang === 'tc' ? h.tc : h.key }));
+      return {
+        title: t('datasetNames.habitat'),
+        rows,
+        note: t('datasetDescriptions.habitat') + '<br><br>' + t('ui.habitatNote')
+      };
+    },
     cnp: () => {
       /* 圖例由已載入的資料統計出來，而非寫死兩項：
          日後官方新增許可證類別會自動出現，不會靜默漏掉。 */
@@ -1823,6 +2676,29 @@ body.has-subtabs .sub-caret { display: block; }
         { type: 'dot', color: '#7cb342', label: t('legend.recycleOtherCat') }
       ],
       note: t('ui.officialName') + '：' + t('datasetNames.recyclePoints')
+    }),
+    ev: () => ({
+      /* 圖例由已載入的資料統計出來：只列出實際出現的速度類別，
+         不會出現「圖例有、地圖上沒有」的空類別。 */
+      title: t('datasetNames.evChargers'),
+      rows: (() => {
+        const seen = {};
+        const grp = layers.ev;
+        if (grp && grp.eachLayer) {
+          grp.eachLayer((l) => {
+            const p = l.feature && l.feature.properties;
+            if (!p) return;
+            evConnectors(p).forEach((c) => { seen[c[0]] = true; });
+          });
+        }
+        const labelKey = { standard: 'evStandard', medium: 'evMedium', quick: 'evQuick', fast: 'evFast' };
+        const order = ['standard', 'medium', 'quick', 'fast'];
+        const present = order.filter((s) => seen[s]);
+        /* 未載入時退回顯示全部四類，避免圖例空白 */
+        const list = present.length ? present : order;
+        return list.map((s) => ({ type: 'dot', color: EV_SPEED_COLOR[s], label: t('legend.' + labelKey[s]) }));
+      })(),
+      note: t('datasetDescriptions.evChargers') + '<br><br>' + t('ui.evNote')
     }),
     noise: () => ({
       title: t('datasetNames.lnrs'),
@@ -1886,9 +2762,10 @@ body.has-subtabs .sub-caret { display: block; }
       container.innerHTML = TABS.map((tb) => `
         <button class="tab" type="button" role="tab" id="tab-${tb.id}"
                 data-tab="${tb.id}" aria-selected="false" tabindex="-1"
-                aria-controls="map" title="${esc(t('tabs.' + tb.id))}">
+                aria-controls="map" title="${esc(t('tabs.' + tb.id))}"
+                aria-label="${esc(t('tabs.' + tb.id))}">
           <span class="tab-icon" aria-hidden="true">${tb.icon}</span>
-          <span class="tab-label">${esc(t('tabs.' + tb.id))}</span>
+          <span class="tab-label">${esc(tabShortLabel(tb))}</span>
           <span class="spinner-mini" aria-hidden="true"></span>
           <span class="err-dot" aria-hidden="true"></span>
         </button>`).join('');
@@ -1901,6 +2778,24 @@ body.has-subtabs .sub-caret { display: block; }
       btn.addEventListener('keydown', onTabKeydown);
     });
     updateSubTabs();
+  }
+
+  /* 分頁顯示文字：優先用縮寫（見 TABS.short），沒有才用完整名稱。
+     完整名稱一律保留在 title／aria-label，滑鼠移過去或讀屏都拿得到。 */
+  function tabShortLabel(tb) {
+    if (tb.short) return tb.short[state.lang] || tb.short.en || tb.short.tc;
+    return t('tabs.' + tb.id);
+  }
+  /* 語言切換時同步更新分頁文字與提示 */
+  function refreshTabLabels() {
+    TABS.forEach((tb) => {
+      document.querySelectorAll(`.tab[data-tab="${tb.id}"]`).forEach((btn) => {
+        const lbl = btn.querySelector('.tab-label');
+        if (lbl) lbl.textContent = tabShortLabel(tb);
+        btn.title = t('tabs.' + tb.id);
+        btn.setAttribute('aria-label', t('tabs.' + tb.id));
+      });
+    });
   }
 
   /* 子分頁只在「水質數據」分頁出現；同時切換 body 的 has-subtabs，
@@ -2051,6 +2946,8 @@ body.has-subtabs .sub-caret { display: block; }
         else if (id === 'marine') lyr = await loadMarineLayer();
         else if (id === 'river') lyr = await loadRiverLayer();
         else if (id === 'recycle') lyr = await loadRecycleLayer();
+        else if (id === 'ev') lyr = await loadEvLayer();
+        else if (id === 'habitat') lyr = await loadHabitatLayer();
         else if (id === 'noise') lyr = await loadNoiseLayer();
         else if (id === 'cnp') lyr = await loadCnpLayer();
         layers[id] = lyr;
@@ -2062,7 +2959,7 @@ body.has-subtabs .sub-caret { display: block; }
         state.errors[id] = true;
         setTabError(id, true);
         // 錯誤訊息用資料集名稱（tabs.<layerId> 對子圖層並不存在）
-        const nm = t('datasetNames.' + DATA[id].datasetKey);
+        const nm = DATA[id] ? t('datasetNames.' + DATA[id].datasetKey) : t('tabs.' + tabOfLayer(id));
         console.error(`[圖層錯誤] ${nm}：`, e);
         toast(t('ui.errorLayer').replace('{name}', nm));
         return null;
@@ -2103,8 +3000,16 @@ body.has-subtabs .sub-caret { display: block; }
 
     /* 分頁只決定「顯示哪一組」，實際要載入的圖層由 activeLayerId() 決定 */
     const lid = activeLayerId();
+    /* 注意：並非每個圖層 id 都在 DATA 有對應項目 ——「低噪音路面」分頁的 id 是
+       noise，但資料設定是 DATA.lnrs（noise 分頁另有 lnrs/l10 兩個子圖層開關）。
+       因此這裡必須容錯取名稱，否則在 noise 分頁切換語言時會拋
+       TypeError: Cannot read properties of undefined (reading 'datasetKey')，
+       令 applyLang() 中斷（圖例與地名圖層都不會更新）。 */
     if (!state.loaded[lid]) {
-      showLoading(true, t('ui.loadingLayer').replace('{name}', t('datasetNames.' + DATA[lid].datasetKey)));
+      const nameKey = DATA[lid]
+        ? 'datasetNames.' + DATA[lid].datasetKey
+        : 'tabs.' + tabOfLayer(lid);
+      showLoading(true, t('ui.loadingLayer').replace('{name}', t(nameKey)));
     }
     const lyr = await ensureLayer(lid);
     showLoading(false);
@@ -2216,6 +3121,7 @@ body.has-subtabs .sub-caret { display: block; }
 
     renderLegend();
     updateSubTabs();
+    refreshTabLabels();
     const a2hsTxt = $('#a2hs-text');
     if (a2hsTxt) a2hsTxt.textContent = t('ui.a2hs');
 
@@ -2265,21 +3171,45 @@ body.has-subtabs .sub-caret { display: block; }
         ? '請使用瀏覽器選單「加到主畫面 / 安裝應用程式」。'
         : 'Use the browser menu → "Add to Home Screen / Install app".');
     });
+    /* 彈窗互動：泳灘檢視切換（泳灘分頁是真正的 <button>，鍵盤操作原生支援） */
+    const mapEl = $('#map');
+    if (mapEl) {
+      mapEl.addEventListener('click', onMapPopupClick);
+    }
   }
 
-  /* 背景預先載入其餘圖層（不阻塞首屏） */
+  /* 背景預先載入（只挑「細而快」的圖層）
+     原本會把「其餘全部」圖層逐個預先載入，但實測代價很大：
+       - 回收點 8,858 筆：每頁 987KB，共 3 頁（約 2.9MB，每頁約 1.85 秒）
+       - 電動車充電器 988 筆：781KB
+       - 建築噪音許可證 1,962 筆：317KB
+     全部加起來每次開啟頁面都會在背景拉約 3.8MB。雖然不阻塞首屏，
+     但會與使用者真正要看的圖層爭用同一條（已被主機限速的）連線，
+     而且只要還有背景請求，載入指示器就會一直轉，看起來像「當掉」。
+     現在只預先載入細而快的圖層（合共約 6KB），其餘一律等到使用者
+     真的切到那個分頁才載入 —— 切換時才顯示載入指示器，語意也較正確。 */
+  const PREFETCH_IDS = ['beach', 'marine', 'river'];
+  const PREFETCH_DELAY_MS = 2500;
+  const PREFETCH_GAP_MS = 200;
+
   function prefetchRest() {
-    // 由小到大排序：海水 10 筆、河溪 13 筆最快，回收點 8858 筆最後
-    const rest = ['beach', 'marine', 'river', 'noise', 'cnp', 'recycle'];
-    let i = 0;
-    const next = () => {
-      if (i >= rest.length) return;
-      const id = rest[i++];
-      if (!state.loaded[id] && !state.loading[id]) {
-        ensureLayer(id).finally(() => setTimeout(next, 120));
-      } else setTimeout(next, 120);
+    // 只在使用者閒置時才做，避免與首屏競爭
+    const start = () => {
+      let i = 0;
+      const next = () => {
+        if (i >= PREFETCH_IDS.length) return;
+        const id = PREFETCH_IDS[i++];
+        if (!state.loaded[id] && !state.loading[id]) {
+          ensureLayer(id).finally(() => setTimeout(next, PREFETCH_GAP_MS));
+        } else setTimeout(next, PREFETCH_GAP_MS);
+      };
+      next();
     };
-    setTimeout(next, 800);
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(start, { timeout: PREFETCH_DELAY_MS });
+    } else {
+      setTimeout(start, PREFETCH_DELAY_MS);
+    }
   }
 
   /* PWA：註冊 Service Worker + A2HS */
@@ -2360,6 +3290,12 @@ body.has-subtabs .sub-caret { display: block; }
       setWaterSub: (sub) => { if (WATER_SUBS.indexOf(sub) >= 0) { state.waterSub = sub; updateSubTabs(); } },
       activeLayerId: activeLayerId,
       positionSubTabs: positionSubTabs,
+      /* 除錯／測試用：檢查歷史檢視的狀態 */
+      beachDebug: () => ({
+        historyCacheKeys: Object.keys(beachHistoryCache).length,
+        cachedStatuses: Object.keys(beachHistoryCache).map((k) => beachHistoryCache[k].status),
+        viewKeys: Object.keys(beachHistoryView).map((k) => k + '=' + beachHistoryView[k])
+      }),
       reload: () => {
         const lid = activeLayerId();
         layers[lid] = null; state.loaded[lid] = false;

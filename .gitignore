@@ -1,6 +1,7 @@
-# 建置／測試產物（由 tools/verify.cjs、tools/shots.cjs 產生，可隨時重建）
+# 建置／測試產物（由 tools/ 內的驗證／截圖腳本產生，可隨時重建）
 .verify/
 .tmp/
+tools/artifacts/
 
 # WorkBuddy 代理工作記憶（非應用程式原始碼）
 .workbuddy-ai/
