@@ -793,6 +793,58 @@ try {
   check('popup still fits its card at the largest font step',
     !!fsBig && !!fsBig.popup && fsBig.popup.fits === true,
     fsBig && fsBig.popup ? `cardR=${fsBig.popup.cardR} innerR=${fsBig.popup.innerR}` : 'no popup');
+
+  /* ---------- no popup row may overflow its card ----------
+     `.cp-label` used to be `flex: 0 0 auto`, so it could never shrink: at the
+     largest font step the English label "Type of Air Quality Monitoring Station"
+     measured 341px inside a 260px card, the value was crushed to 0px and pushed
+     102px outside the card. Rows now wrap, the label is capped at the card width
+     and the value drops onto its own line. Measured on a rendered card (no Leaflet
+     needed — `.custom-popup` takes its width from the viewport media query). */
+  const rowsFit = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    if (h.state.lang !== 'en') {
+      document.getElementById('lang-btn').click();
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    let inner = null;
+    h.layers.air.eachLayer((l) => {
+      if (inner || !l.feature) return;
+      const c = l.getPopup().getContent();
+      const node = L.DomUtil.create('div');
+      node.innerHTML = (typeof c === 'function') ? c(l) : String(c);
+      inner = node.innerHTML;
+    });
+    if (!inner) return { err: 'no air popup' };
+    const holder = document.createElement('div');
+    holder.innerHTML = inner;
+    document.body.appendChild(holder);
+    const card = holder.querySelector('.custom-popup');
+    const cardW = Math.round(card.getBoundingClientRect().width);
+    const rows = [...card.querySelectorAll('.cp-row')].map((r) => ({
+      label: r.querySelector('.cp-label').textContent.trim(),
+      overflow: Math.round(r.scrollWidth - r.clientWidth)
+    }));
+    const foot = card.querySelector('.cp-foot');
+    const footHtml = foot ? foot.innerHTML : '';
+    const result = {
+      lang: h.state.lang,
+      cardW,
+      rows: rows.length,
+      worst: rows.reduce((m, r) => Math.max(m, r.overflow), 0),
+      longest: rows.reduce((m, r) => (r.label.length > m.length ? r.label : m), ''),
+      footBr: (footHtml.match(/<br>/g) || []).length,
+      srcThenBr: /cp-src">[^<]*<\\/span><br>/.test(footHtml)
+    };
+    holder.remove();
+    return result;
+  })()`, true);
+  check('no popup row overflows its card (English labels, largest font, narrow viewport)',
+    !!rowsFit && !rowsFit.err && rowsFit.worst <= 1,
+    rowsFit ? `lang=${rowsFit.lang} card=${rowsFit.cardW}px rows=${rowsFit.rows} worstOverflow=${rowsFit.worst}px longest="${rowsFit.longest}"` : '?');
+  check('every card footer puts the source and the last-update on separate rows',
+    !!rowsFit && rowsFit.footBr >= 2 && rowsFit.srcThenBr === true,
+    rowsFit ? `footerBreaks=${rowsFit.footBr} sourceOnOwnRow=${rowsFit.srcThenBr}` : '?');
   /* restore the smallest step so later checks see the default UI */
   await evalJs(`(() => { const d = document.getElementById('fs-down'); for (let i = 0; i < 10; i++) d.click(); })()`);
   await sleep(300);

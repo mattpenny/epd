@@ -276,11 +276,23 @@ body.has-subtabs .sub-caret { display: block; }
   border-bottom: 1px solid var(--border-color);
 }
 .custom-popup .cp-body { padding: 10px 13px 12px; }
-.custom-popup .cp-row { display: flex; gap: 8px; margin: 6px 0; line-height: 1.45; }
-.custom-popup .cp-label {
-  flex: 0 0 auto; min-width: 84px; color: var(--text-secondary); font-size: calc(12px * var(--fs));
+/* 標籤／內容列。標籤原本是 flex: 0 0 auto（永不收縮），遇到長標籤（例如英文的
+   "Type of Air Quality Monitoring Station"）就會撐爆卡片：實測在最大字體下標籤
+   寬 341px、卡片只有 260px，內容被壓成每行一個字並溢出卡外 102px。
+   改為：整列可換行；標籤最寬只到卡片全寬（超出時在卡內換行）；
+   內容有最小基準寬度（6em，隨字體縮放）—— 兩者放不下時內容自動落到下一行，
+   等同上下堆疊，因此任何語言、任何字體大小都不會溢出。 */
+.custom-popup .cp-row {
+  display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px 0; line-height: 1.45;
 }
-.custom-popup .cp-value { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+.custom-popup .cp-label {
+  flex: 0 0 auto; min-width: 84px; max-width: 100%;
+  color: var(--text-secondary); font-size: calc(12px * var(--fs));
+  overflow-wrap: anywhere;
+}
+.custom-popup .cp-value {
+  flex: 1 1 6em; min-width: 0; overflow-wrap: anywhere; word-break: break-word;
+}
 /* 寬內容列：標籤在上、內容在下。用於「充電器（速度 · 插頭標準 · 數目）」這類
    內容比標籤長得多的情況 —— 原本單行 flex 會令徽章擠在右邊並超出卡片。 */
 .custom-popup .cp-row.cp-row--stack { display: block; }
@@ -1896,6 +1908,11 @@ body.has-subtabs .sub-caret { display: block; }
   /* ======================================================================
      9. Popup 內容
      ====================================================================== */
+  /* 頁腳的「最後更新」：標籤一行、時間一行，全部卡片一致（使用者要求）。
+     資料來源另佔一行，故頁腳最少三行。 */
+  function footUpdated(meta) {
+    return esc(t('popup.lastUpdate')) + '<br>' + esc(meta || fmtDateTime(new Date()));
+  }
   function popupShell(title, descHtml, rowsHtml, footExtra) {
     return `<div class="custom-popup">
       ${descHtml || ''}
@@ -1903,7 +1920,7 @@ body.has-subtabs .sub-caret { display: block; }
       <div class="cp-body">
         ${rowsHtml}
         <div class="cp-foot">
-          ${esc(t('popup.source'))}${footExtra ? ' | ' + footExtra : ''}
+          <span class="cp-src">${esc(t('popup.source'))}</span>${footExtra ? '<br>' + footExtra : ''}
         </div>
       </div>
     </div>`;
@@ -1934,11 +1951,11 @@ body.has-subtabs .sub-caret { display: block; }
       rows = row(t('popup.aqhi'), `<span class="badge ${cls}">${esc(aqhi.aqhi)}</span>`) +
         row(t('popup.riskLevel'), `<span class="badge ${cls}">${esc(t('legend.' + RISK_KEY[riskKey]))}</span>`) +
         rows +
-        row(t('popup.lastUpdate'), esc(String(aqhi.publish_date).replace('T', ' ').slice(0, 16)));
+        rowStack(t('popup.lastUpdate'), esc(String(aqhi.publish_date).replace('T', ' ').slice(0, 16)));
     }
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.airNetwork'))}</p>`;
     return popupShell(name || '—', desc, rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.air || fmtDateTime(new Date())));
+      footUpdated(state.meta.air));
   }
 
   /* ---- 泳灘 Popup ---- */
@@ -1985,7 +2002,7 @@ body.has-subtabs .sub-caret { display: block; }
       : '';
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.beachGrading'))}</p>`;
     return popupShell(name || '—', desc, rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.beach || fmtDateTime(new Date())) +
+      footUpdated(state.meta.beach) +
       (link ? ' | ' + link : ''));
   }
 
@@ -2045,7 +2062,7 @@ body.has-subtabs .sub-caret { display: block; }
       : '';
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.' + DATA[kind].datasetKey))}</p>`;
     return popupShell(name || '—', desc, rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta[kind] || fmtDateTime(new Date())) +
+      footUpdated(state.meta[kind]) +
       (linkHtml ? ' | ' + linkHtml : ''));
   }
 
@@ -2093,7 +2110,7 @@ body.has-subtabs .sub-caret { display: block; }
     const search = `<a href="${CNP_SEARCH_URL}" target="_blank" rel="noopener">` +
       `${esc(t('ui.cnpSearchLink'))}</a>`;
     return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), desc, rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.cnp || fmtDateTime(new Date())) +
+      footUpdated(state.meta.cnp) +
       ' | ' + search);
   }
 
@@ -2142,7 +2159,7 @@ body.has-subtabs .sub-caret { display: block; }
     /* 資料擷取時間同樣上下堆疊（時間字串比標籤長，放大字體後尤甚） */
     rows += rowStack(t('ui.dataFetched'), esc(state.meta.ev || fmtDateTime(new Date())));
     return popupShell(loc || t('datasetNames.evChargers'), '', rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.ev || fmtDateTime(new Date())) +
+      footUpdated(state.meta.ev) +
       '<br>' + esc(t('ui.evNote')));
   }
 
@@ -2264,7 +2281,7 @@ body.has-subtabs .sub-caret { display: block; }
     if (district) rows += row(t('popup.district'), esc(district));
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.habitat'))}</p>`;
     return popupShell(label || proj || t('datasetNames.habitat'), desc, rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.habitat || fmtDateTime(new Date())));
+      footUpdated(state.meta.habitat));
   }
 
   /* ---- 回收點 Popup ---- */
@@ -2278,7 +2295,7 @@ body.has-subtabs .sub-caret { display: block; }
     if (p.district_id) rows += row(t('popup.district'), esc(String(p.district_id).replace(/_/g, ' ')));
     const desc = `<p class="cp-desc">${esc(t('datasetNames.recyclePoints'))} · ${esc(t('ui.officialName'))}</p>`;
     return popupShell(addr || t('datasetNames.recyclePoints'), desc, rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.recycle || fmtDateTime(new Date())));
+      footUpdated(state.meta.recycle));
   }
 
   /* ---- 低噪音路面 Popup ---- */
@@ -2289,7 +2306,7 @@ body.has-subtabs .sub-caret { display: block; }
     if (p.SHAPE_Length != null) rows += row('SHAPE_Length', esc(Number(p.SHAPE_Length).toFixed(1)));
     const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.lnrs'))}</p>`;
     return popupShell(t('datasetNames.lnrs'), desc, rows,
-      esc(t('popup.lastUpdate')) + '：' + esc(state.meta.lnrs || fmtDateTime(new Date())));
+      footUpdated(state.meta.lnrs));
   }
 
   /* ======================================================================
