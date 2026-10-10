@@ -77,6 +77,16 @@ const ev = async (expr, awaitPromise = false) => {
   }
   throw last;
 };
+const waitForAny = (ids, ms = 45000) => ev(
+  `(async () => {
+     const ids = ${JSON.stringify(ids)};
+     const t0 = Date.now();
+     while (Date.now() - t0 < ${ms}) {
+       if (ids.some((i) => document.getElementById(i))) return true;
+       await new Promise((r) => setTimeout(r, 250));
+     }
+     return false;
+   })()`, true);
 const waitFor = (ids, ms = 45000) => ev(
   `(async () => {
      const ids = ${JSON.stringify(ids)};
@@ -135,8 +145,9 @@ function stopBrowser() {
    令「可選清單」變空。） */
 async function resetSession(downloadDir) {
   stopBrowser();
-  for (const rel of [['Default', 'Cookies'], ['Default', 'Network', 'Cookies']]) {
-    try { fs.rmSync(path.join(PROFILE, ...rel), { force: true }); } catch (e) {}
+  for (const rel of [['Default', 'Cookies'], ['Default', 'Network', 'Cookies'],
+                     ['Default', 'Local Storage'], ['Default', 'Session Storage']]) {
+    try { fs.rmSync(path.join(PROFILE, ...rel), { recursive: true, force: true }); } catch (e) {}
   }
   await startBrowser(downloadDir);
 }
@@ -145,7 +156,8 @@ async function resetSession(downloadDir) {
 async function fetchZone(kind, zone, downloadDir, fromYear) {
   fs.readdirSync(downloadDir).forEach((f) => fs.rmSync(path.join(downloadDir, f), { force: true }));
   await send('Page.navigate', { url: `https://cd.epic.epd.gov.hk/EPICRIVER/${kind}/?lang=en` }, sessionId);
-  if (!await waitFor(['form:select', 'form:wzterControlZone'])) {
+  if (!await waitFor(['form:select', 'form:wzterControlZone']) ||
+      !await waitForAny(['Aselect-download', 'download'])) {
     return { zone, error: 'step 1 form not found' };
   }
   await ev(`(() => {
@@ -204,11 +216,22 @@ async function fetchZone(kind, zone, downloadDir, fromYear) {
     return true;
   })()`, true);
   await sleep(500);
+  /* 移動若沒生效，就不必等 60 秒才失敗 —— 先檢查「已選」清單是否真的有東西 */
+  const movedOk = await ev(`(() => {
+    const st = document.getElementById('station');
+    const pa = document.getElementById('parameter');
+    return { st: st ? st.options.length : 0, pa: pa ? pa.options.length : 0 };
+  })()`);
+  if (!movedOk.st || !movedOk.pa) {
+    return { zone, error: `move to Selected failed (station=${movedOk.st}, parameter=${movedOk.pa})` };
+  }
+
   await ev(`(() => { document.getElementById('form:display').click(); return true; })()`);
 
   let file = null;
-  for (let i = 0; i < 60; i++) {
-    await sleep(2000);
+  const deadline = Date.now() + 75000;
+  while (Date.now() < deadline) {
+    await sleep(1000);
     const files = fs.readdirSync(downloadDir);
     const csv = files.find((f) => /\.csv$/i.test(f));
     const busy = files.some((f) => f.endsWith('.crdownload'));
@@ -292,7 +315,7 @@ async function main() {
          已選的項目，令第二區之後的「可選清單」變空 —— 這正是先前只有第一區
          成功的原因。 */
       let res = { zone, error: 'not attempted' };
-      for (let attempt = 1; attempt <= 2; attempt++) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           await resetSession(downloadDir);
           res = await fetchZone(kind, zone, downloadDir, fromYear);
