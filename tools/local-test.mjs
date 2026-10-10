@@ -643,6 +643,45 @@ try {
     !!cnpRaw && /apps-construct/.test(cnpRaw),
     'raw URL = ' + cnpRaw);
 
+  /* ---------- popup must never overflow its own card (mobile regression) ----------
+     The mobile CSS used to force `.custom-popup` to `width: 90vw`, but Leaflet
+     caps the popup card at the bindPopup `maxWidth` (300 or 320). On any viewport
+     wider than ~333px the content was therefore WIDER than the white card and the
+     description/footer text spilled outside it (at 600px: 540px content in a
+     301px card). Assert the invariant at a narrow viewport: the content's right
+     edge must not pass the card's right edge. */
+  await cdp.send('Emulation.setDeviceMetricsOverride',
+    { width: 600, height: 900, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await sleep(400);
+  const popFit = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    await h.activate('beach');
+    await new Promise((r) => setTimeout(r, 2500));
+    let marker = null;
+    h.layers.beach.eachLayer((l) => { if (!marker && l.feature && l.getLatLng) marker = l; });
+    if (!marker) return { err: 'no beach marker' };
+    h.map.setView(marker.getLatLng(), 14, { animate: false });
+    marker.openPopup();
+    await new Promise((r) => setTimeout(r, 900));
+    const card = document.querySelector('.leaflet-popup-content-wrapper');
+    const inner = document.querySelector('.leaflet-popup-content .custom-popup');
+    if (!card || !inner) return { err: 'no popup' };
+    const c = card.getBoundingClientRect(), i = inner.getBoundingClientRect();
+    const spill = [...document.querySelectorAll('.leaflet-popup-content .cp-desc, .leaflet-popup-content .cp-foot')]
+      .map((el) => Math.round(el.scrollWidth - el.clientWidth));
+    return {
+      viewport: window.innerWidth,
+      cardW: Math.round(c.width), cardR: Math.round(c.right),
+      innerW: Math.round(i.width), innerR: Math.round(i.right),
+      maxSpill: spill.length ? Math.max(...spill) : 0
+    };
+  })()`, true);
+  check('popup content stays inside its card at a narrow viewport',
+    !!popFit && !popFit.err && popFit.innerR <= popFit.cardR + 1 && popFit.maxSpill === 0,
+    popFit ? `viewport=${popFit.viewport} card=${popFit.cardW}px(r=${popFit.cardR}) content=${popFit.innerW}px(r=${popFit.innerR}) spill=${popFit.maxSpill}px` : 'no popup');
+  await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  await sleep(400);
+
   /* ---------- no uncaught page exceptions ---------- */
   check('no uncaught page exceptions', pageErrors.length === 0,
     pageErrors.slice(0, 3).join(' ;; ') || 'none');

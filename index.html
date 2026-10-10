@@ -479,7 +479,15 @@ body.has-subtabs .sub-caret { display: block; }
   .legend-head { cursor: pointer; position: sticky; top: 0; background: var(--bg-secondary); }
 
   /* 手機：Popup 字體縮小、關閉按鈕加大 */
-  .custom-popup { max-width: 90vw; width: 90vw; font-size: 12px; }
+  /* 寬度必須 <= Leaflet 的 maxWidth（各圖層為 300／320），否則 .custom-popup
+     會比 .leaflet-popup-content 寬，文字便會溢出白卡。原本寫死 90vw：只要
+     畫面寬過 333px 就會超寬（600px 畫面實測超寬 237px）。現改為
+     min(300px, 100vw-60px)：留 30px 邊距，窄機自動收窄。 */
+  .custom-popup {
+    max-width: min(300px, calc(100vw - 60px));
+    width: min(300px, calc(100vw - 60px));
+    font-size: 12px;
+  }
   .custom-popup .cp-title { font-size: 15px; padding-right: 38px; }
   .custom-popup .cp-label { min-width: 72px; font-size: 11.5px; }
   .leaflet-container a.leaflet-popup-close-button {
