@@ -1,0 +1,62 @@
+name: Update water-quality history snapshot
+
+# WHY: data/wq-history.json holds the multi-year DO / BOD5 history for EPD's
+# marine (94) and river (36) stations. EPD only publishes it through a JSF form
+# on cd.epic.epd.gov.hk that is not directly fetchable, so this job drives a
+# headless Chrome through that form (tools/build-wq-history.mjs) and commits the
+# resulting snapshot. The page reads data/wq-history.json lazily when a user
+# opens the History tab — it never fetches the CORS-blocked source itself.
+#
+# NOTE: river history is keyed by RIVER NAME (the form's River_Name), not by the
+# map layer's A_Station code. The app maps A_Station_Eng -> history key, with one
+# alias: "Shing Mun River" (map) -> "Shing Mun Main Channel" (history file).
+# Marine history is keyed by the station code, as in the map layer.
+#
+# FREQUENCY: historical water data only changes when EPD appends new samples, so
+# a monthly refresh is plenty. GitHub's cron is best-effort and often delayed;
+# the page always shows the snapshot's own generatedAt timestamp, so users are
+# never misled about age. workflow_dispatch allows a manual run.
+
+on:
+  schedule:
+    - cron: '17 4 1 * *'        # 04:17 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wq-history
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Chromium for headless scraping
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+          echo "CHROME_PATH=$(which chromium-browser)" >> "$GITHUB_ENV"
+
+      - name: Scrape EPD water-quality history
+        run: node tools/build-wq-history.mjs --years=10
+
+      - name: Commit if the snapshot changed
+        run: |
+          if [ -z "$(git status --porcelain data/wq-history.json)" ]; then
+            echo "No change in snapshot; nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/wq-history.json
+          git commit -m "chore: update water-quality history snapshot"
+          git push

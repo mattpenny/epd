@@ -323,6 +323,10 @@ body.has-subtabs .sub-caret { display: block; }
 /* 歷史泳灘水質數列圖 */
 .custom-popup .hb-chart { display: block; }
 .custom-popup .hb-chart svg { display: block; background: var(--bg-secondary); border-radius: 4px; }
+/* 整條數列都沒有值（例如該河溪測站不公佈生化需氧量） */
+.custom-popup .hb-chart-empty {
+  padding: 12px 8px; background: var(--bg-secondary); border-radius: 4px; text-align: center;
+}
 .custom-popup .hb-axis {
   display: flex; justify-content: space-between; align-items: baseline;
   color: var(--text-secondary); font-size: calc(10.5px * var(--fs)); margin-top: 2px; gap: 6px;
@@ -2030,11 +2034,14 @@ body.has-subtabs .sub-caret { display: block; }
       if (!layer || !layer.feature) return;
       const key = wqBtn.getAttribute('data-wq-key');
       const view = wqBtn.getAttribute('data-wq-view');
+      const kind = wqBtn.getAttribute('data-wq-kind');
       if (!key || !view) return;
-      wqHistoryView[key] = view;
+      /* 以「圖層 + 測站代號」為鍵：海水與河溪的代號可能重號，否則會互相干擾 */
+      const vk = kind + '|' + key;
+      wqHistoryView[vk] = view;
       if (view === 'history') {
         ensureWqHistory().then(() => {
-          if (wqHistoryView[key] !== 'history') return;
+          if (wqHistoryView[vk] !== 'history') return;
           layer.closePopup(); layer.openPopup();
         });
       }
@@ -2067,8 +2074,9 @@ body.has-subtabs .sub-caret { display: block; }
   /* ---- 近期海水／河溪水質數據 Popup ---- */
   function waterPopup(p, kind) {
     const name = waterStationName(p);
-    const key = String(p.A_Station || '').trim();
-    const view = wqHistoryView[key] || 'latest';
+    /* 河溪歷史以河名為主鍵，海水以測站代號為主鍵（兩者代號可能重號，故分開） */
+    const key = kind === 'river' ? wqRiverKey(p) : String(p.A_Station || '').trim();
+    const view = wqHistoryView[kind + '|' + key] || 'latest';
     let rows = '';
     /* 官方分組：海水＝水質管制區（見 MARINE_ZONE）；河溪的官方分組就是河溪本身，
        已顯示在彈窗標題，故不重複列一行。 */
@@ -2340,9 +2348,21 @@ body.has-subtabs .sub-caret { display: block; }
     });
     return wqHistoryPromise;
   }
+  /* 河溪歷史快照以「河名」為主鍵（官方 CSV 的 River_Name），但官方互動地圖的河溪
+     圖層以測站代號 A_Station 為主鍵、河名在 A_Station_Eng。兩者需對應：彈窗改用
+     河名去撈歷史序列。個別河名在兩套資料中有別名（如 "Shing Mun River" 在歷史檔
+     寫成 "Shing Mun Main Channel"），在此統一映射。 */
+  const WQ_RIVER_ALIAS = { 'Shing Mun River': 'Shing Mun Main Channel' };
+  function wqRiverKey(p) {
+    const eng = String(p && p.A_Station_Eng || '').trim();
+    if (!eng) return '';
+    return WQ_RIVER_ALIAS[eng] || eng;
+  }
   function wqSeriesFor(kind, key) {
     const g = wqHistorySnapshot && wqHistorySnapshot[kind];
-    const rec = g && g[key];
+    let rec = g && g[key];
+    /* 河溪別名備援：萬一傳入的是未對應過的河名，仍嘗試別名鍵 */
+    if (!rec && kind === 'river') rec = g && g[WQ_RIVER_ALIAS[key]];
     return rec && Array.isArray(rec.series) && rec.series.length ? rec.series : null;
   }
   /* 與泳灘卡同一種長條圖，但只用單色 —— 官方沒有為溶解氧／生化需氧量訂等級，
@@ -2350,6 +2370,12 @@ body.has-subtabs .sub-caret { display: block; }
      版面：左邊留位放 Y 軸刻度與單位，下面留位放日期；viewBox + width:100%，
      令圖表隨彈窗寬度一起放大，看得更清楚。 */
   function wqChart(series, which, color, label, unit) {
+    /* 有些河溪測站只公佈溶解氧、沒有生化需氧量 —— 整條序列都是缺值時不要畫
+       一排零高度的假長條，直接標示「沒有數據」。 */
+    const has = series.some((s) => { const v = parseFloat(s[which]); return isFinite(v); });
+    if (!has) {
+      return `<div class="hb-chart hb-chart-empty"><span class="cp-sub">${esc(t('ui.wqHistNoData'))}</span></div>`;
+    }
     const nums = series.map((s) => { const v = parseFloat(s[which]); return isFinite(v) ? v : 0; });
     const max = Math.max.apply(null, nums.concat([0.0001]));
     const W = 260, H = 120;
@@ -2399,8 +2425,10 @@ body.has-subtabs .sub-caret { display: block; }
     const color = WATER_COLOR[kind] || HIST_BEACH_COLOR;
     const series = wqSeriesFor(kind, key);
     if (!series) {
+      /* 整個河溪都沒有匹配的歷史序列（例如官方互動地圖有該測站、但歷史檔沒有）：
+         給出與「只有溶氧、沒有生化需氧量」相同的「沒有數據」樣式，避免畫出空白。 */
       return rowStack(t('popup.histTrendWq'),
-        `<span class="cp-sub">${esc(t('ui.wqHistNoData'))}</span>`);
+        `<div class="hb-chart hb-chart-empty"><span class="cp-sub">${esc(t('ui.wqHistNoData'))}</span></div>`);
     }
     const doS = wqStats(series, 1), bodS = wqStats(series, 2);
     const fmt = (v) => (v == null || v === '' ? '—' : String(v));
