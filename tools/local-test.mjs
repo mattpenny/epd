@@ -1073,6 +1073,119 @@ try {
     !!wqh && wqh.river && wqh.river.empty >= 1 && wqh.river.rects.every((n) => n >= 1),
     wqh && wqh.river ? `empty=${wqh.river.empty} rects=${JSON.stringify(wqh.river.rects)}` : '?');
 
+  /* ---------- 泳灘圖表的 Y 軸（與海水同一版面） ---------- */
+  const bhc = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    await h.activate('beach');
+    await new Promise((r) => setTimeout(r, 2500));
+    let layer = null;
+    h.layers.beach.eachLayer((l) => { if (!layer && l.feature) layer = l; });
+    if (!layer) return { err: 'no beach layer' };
+    h.map.setView(layer.getLatLng(), 13, { animate: false });
+    layer.openPopup();
+    await new Promise((r) => setTimeout(r, 700));
+    const btn = document.querySelector('.leaflet-popup [data-bh-view="history"]');
+    if (!btn) return { err: 'no beach history tab' };
+    btn.click();
+    await new Promise((r) => setTimeout(r, 5000));
+    const pop = document.querySelector('.leaflet-popup-content');
+    const svg = pop && pop.querySelector('.hb-chart svg');
+    layer.closePopup();
+    if (!svg) return { err: 'no beach chart svg' };
+    return {
+      texts: [...svg.querySelectorAll('text')].map((t) => t.textContent.trim()),
+      rects: svg.querySelectorAll('rect').length,
+      widthAttr: svg.getAttribute('width'),
+      viewBox: svg.getAttribute('viewBox')
+    };
+  })()`, true);
+
+  check('beach history chart carries a Y-axis unit and tick labels (same frame as marine)',
+    !!bhc && !bhc.err && bhc.texts.length >= 4 &&
+      bhc.texts.some((s) => /E\. coli|大腸桿菌/.test(s)) && bhc.viewBox === '0 0 260 120',
+    bhc ? `texts=${(bhc.texts || []).join(' | ')} viewBox=${bhc.viewBox}` : '?');
+  check('beach history chart scales with its container instead of a fixed pixel width',
+    !!bhc && !bhc.err && bhc.widthAttr === '100%' && bhc.rects > 0,
+    bhc ? `width=${bhc.widthAttr} rects=${bhc.rects}` : '?');
+
+  /* ---------- 卡片高度、捲動、放大、關閉按鈕 ---------- */
+  const uix = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    const out = {};
+    await h.activate('marine');
+    await new Promise((r) => setTimeout(r, 2500));
+    let layer = null;
+    h.layers.marine.eachLayer((l) => { if (!layer && l.feature) layer = l; });
+    if (!layer) return { err: 'no marine layer' };
+    h.map.setView(layer.getLatLng(), 13, { animate: false });
+    layer.openPopup();
+    await new Promise((r) => setTimeout(r, 600));
+    const hist = document.querySelector('.leaflet-popup [data-wq-view="history"]');
+    if (hist) { hist.click(); await new Promise((r) => setTimeout(r, 3500)); }
+    const pop = document.querySelector('.leaflet-popup-content');
+    const card = pop.querySelector('.custom-popup');
+    const body = pop.querySelector('.custom-popup .cp-body');
+    out.card = {
+      cardH: Math.round(card.getBoundingClientRect().height),
+      bodyH: Math.round(body.getBoundingClientRect().height),
+      scrollH: body.scrollHeight,
+      overflowY: getComputedStyle(body).overflowY,
+      maxH: getComputedStyle(body).maxHeight
+    };
+    /* 關閉按鈕：是否真的看得見（有底色／圓形），以及文字是否預留了右側空間 */
+    const x = document.querySelector('.leaflet-popup-close-button');
+    const title = pop.querySelector('.cp-title');
+    const desc = pop.querySelector('.cp-desc');
+    out.closeBtn = {
+      present: !!x,
+      bg: x ? getComputedStyle(x).backgroundColor : null,
+      radius: x ? getComputedStyle(x).borderRadius : null,
+      w: x ? Math.round(x.getBoundingClientRect().width) : 0,
+      titlePadRight: title ? getComputedStyle(title).paddingRight : null,
+      descPadRight: desc ? getComputedStyle(desc).paddingRight : null
+    };
+    /* 點圖表 → 放大 */
+    const chart = pop.querySelector('.hb-chart[data-chart-title]');
+    out.hasChartTitle = !!chart;
+    if (chart) {
+      chart.click();
+      await new Promise((r) => setTimeout(r, 600));
+      const modal = document.querySelector('.chart-modal');
+      out.modal = {
+        open: !!modal && !modal.hidden,
+        svg: modal ? modal.querySelectorAll('.chart-modal__body svg').length : 0,
+        rects: modal ? modal.querySelectorAll('.chart-modal__body svg rect').length : 0,
+        boxW: modal ? Math.round(modal.querySelector('.chart-modal__box').getBoundingClientRect().width) : 0,
+        chartW: chart ? Math.round(chart.getBoundingClientRect().width) : 0,
+        title: modal ? (modal.querySelector('.chart-modal__title').textContent || '') : ''
+      };
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise((r) => setTimeout(r, 400));
+      out.closedByEsc = !!modal && modal.hidden;
+    }
+    layer.closePopup();
+    return out;
+  })()`, true);
+
+  check('a tall history card is capped at about half its old height and scrolls',
+    !!uix && uix.card && uix.card.bodyH <= 340 && uix.card.scrollH > uix.card.bodyH &&
+      uix.card.overflowY === 'auto',
+    uix && uix.card ? `body=${uix.card.bodyH} scroll=${uix.card.scrollH} overflow=${uix.card.overflowY} max=${uix.card.maxH}` : '?');
+  check('clicking a history chart opens a genuinely larger copy',
+    !!uix && uix.modal && uix.modal.open && uix.modal.svg === 1 &&
+      uix.modal.rects > 0 && uix.modal.boxW > uix.modal.chartW * 1.5,
+    uix && uix.modal ? `open=${uix.modal.open} svg=${uix.modal.svg} rects=${uix.modal.rects} boxW=${uix.modal.boxW} chartW=${uix.modal.chartW}` : '?');
+  check('the enlarged chart closes on Escape',
+    !!uix && uix.closedByEsc === true,
+    uix ? 'closedByEsc=' + uix.closedByEsc : '?');
+  check('the close button is a visible badge and the text reserves room for it',
+    !!uix && uix.closeBtn && uix.closeBtn.present &&
+      parseFloat(uix.closeBtn.titlePadRight) >= 34 &&
+      parseFloat(uix.closeBtn.descPadRight) >= 34 &&
+      uix.closeBtn.bg !== 'rgba(0, 0, 0, 0)' && /50%/.test(uix.closeBtn.radius),
+    uix && uix.closeBtn ? `bg=${uix.closeBtn.bg} radius=${uix.closeBtn.radius} w=${uix.closeBtn.w} ` +
+      `padRight title=${uix.closeBtn.titlePadRight} desc=${uix.closeBtn.descPadRight}` : '?');
+
   /* ---------- no uncaught page exceptions ---------- */
   check('no uncaught page exceptions', pageErrors.length === 0,
     pageErrors.slice(0, 3).join(' ;; ') || 'none');

@@ -263,19 +263,34 @@ body.has-subtabs .sub-caret { display: block; }
 }
 .leaflet-popup-tip { background: var(--popup-bg); border: 1px solid var(--border-color); }
 .leaflet-popup-content { margin: 0; }
+/* 關閉按鈕：原本只是一個光禿禿的 ×，壓在說明文字（.cp-desc）上時幾乎看不見。
+   改成有底襯的圓形按鈕、往內縮一點，並用 flex 置中（原本靠 padding-top 手推）。
+   .cp-desc 與 .cp-title 都保留右側內距，文字不會跑到按鈕底下。 */
 .leaflet-container a.leaflet-popup-close-button {
-  color: var(--text-secondary); font-size: 22px; width: 32px; height: 32px;
-  padding: 5px 0 0 0; line-height: 1; z-index: 2;
+  color: var(--text-secondary); font-size: 20px; width: 28px; height: 28px;
+  line-height: 1; z-index: 3; text-decoration: none;
+  top: 6px; right: 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 50%; box-shadow: var(--shadow);
 }
-.leaflet-container a.leaflet-popup-close-button:hover { color: var(--text-primary); }
+.leaflet-container a.leaflet-popup-close-button:hover {
+  color: var(--text-primary); border-color: var(--text-primary);
+}
 
 .custom-popup { max-width: 280px; width: 280px; font-size: calc(13px * var(--fs)); color: var(--popup-text); }
 .custom-popup .cp-title {
   font-size: calc(16px * var(--fs)); font-weight: 700; line-height: 1.35;
-  padding: 12px 34px 8px 13px; margin: 0;
+  padding: 12px 40px 8px 13px; margin: 0;
   border-bottom: 1px solid var(--border-color);
 }
-.custom-popup .cp-body { padding: 10px 13px 12px; }
+/* 歷史記錄卡很高（海水實測內容 651px），整個彈窗超出畫面。限制內容區高度、內部
+   捲動即可；標題在捲動區之外，不會被一起捲走。320px 約為最高那張卡的一半
+   （651 → 320）；較矮的卡（例如最新數據 288px）不受影響，不會出現多餘捲軸。 */
+.custom-popup .cp-body {
+  padding: 10px 13px 12px;
+  max-height: min(320px, 46vh); overflow-y: auto; overscroll-behavior: contain;
+}
 /* 標籤／內容列。標籤原本是 flex: 0 0 auto（永不收縮），遇到長標籤（例如英文的
    "Type of Air Quality Monitoring Station"）就會撐爆卡片：實測在最大字體下標籤
    寬 341px、卡片只有 260px，內容被壓成每行一個字並溢出卡外 102px。
@@ -327,11 +342,38 @@ body.has-subtabs .sub-caret { display: block; }
 .custom-popup .hb-chart-empty {
   padding: 12px 8px; background: var(--bg-secondary); border-radius: 4px; text-align: center;
 }
-.custom-popup .hb-axis {
-  display: flex; justify-content: space-between; align-items: baseline;
-  color: var(--text-secondary); font-size: calc(10.5px * var(--fs)); margin-top: 2px; gap: 6px;
+/* 圖表可按一下放大（見 openChartModal） */
+.custom-popup .hb-chart[data-chart-title] { cursor: zoom-in; }
+.custom-popup .hb-chart[data-chart-title]:hover svg { outline: 1px solid var(--tab-active); }
+
+/* 放大後的圖表彈窗（點擊彈窗內任一張圖表開啟；Esc／點背景／按 × 關閉） */
+.chart-modal {
+  position: fixed; inset: 0; z-index: 3000;
+  display: flex; align-items: center; justify-content: center;
 }
-.custom-popup .hb-axis span:nth-child(2) { opacity: .75; }
+.chart-modal[hidden] { display: none; }
+.chart-modal__backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); }
+.chart-modal__box {
+  position: relative; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  background: var(--popup-bg); color: var(--popup-text); border: 1px solid var(--border-color);
+  border-radius: 8px; box-shadow: var(--shadow-strong);
+  display: flex; flex-direction: column;
+}
+.chart-modal__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border-color);
+}
+.chart-modal__title { margin: 0; font-size: calc(14px * var(--fs)); font-weight: 700; }
+.chart-modal__close {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+  background: var(--bg-secondary); color: var(--text-secondary);
+  border: 1px solid var(--border-color); font-size: 20px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.chart-modal__close:hover { color: var(--text-primary); border-color: var(--text-primary); }
+.chart-modal__body { padding: 12px; overflow: auto; }
+.chart-modal__body svg { width: 100%; height: auto; background: var(--bg-secondary); border-radius: 4px; }
+/* 日期原本畫在 .hb-axis 軸列，現已移進圖表 SVG（與海水／河溪版面一致），故移除 */
 .custom-popup .cp-sub { color: var(--text-secondary); font-size: calc(11.5px * var(--fs)); margin-top: 2px; }
 
 /* 彩色標籤：關鍵數值 */
@@ -364,6 +406,8 @@ body.has-subtabs .sub-caret { display: block; }
 .custom-popup .cp-desc {
   color: var(--text-secondary); font-size: calc(11px * var(--fs)); line-height: 1.5;
   margin: 0 0 8px; font-style: italic;
+  /* 右上角是關閉按鈕 —— 預留右側內距，說明文字才不會被 × 蓋住 */
+  padding: 12px 40px 0 13px;
 }
 .custom-popup .cp-desc + .cp-title { border-top: 0; }
 
@@ -528,10 +572,11 @@ body.has-subtabs .sub-caret { display: block; }
     width: min(300px, calc(100vw - 60px));
     font-size: calc(12px * var(--fs));
   }
-  .custom-popup .cp-title { font-size: calc(15px * var(--fs)); padding-right: 38px; }
+  .custom-popup .cp-title { font-size: calc(15px * var(--fs)); padding-right: 46px; }
+  .custom-popup .cp-desc { padding-right: 46px; }
   .custom-popup .cp-label { min-width: 72px; font-size: calc(11.5px * var(--fs)); }
   .leaflet-container a.leaflet-popup-close-button {
-    font-size: 26px; width: 40px; height: 40px; padding-top: 7px;
+    font-size: 24px; width: 36px; height: 36px;
   }
   .a2hs { top: auto; bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px); }
   .toast { bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 12px); }
@@ -774,6 +819,8 @@ body.has-subtabs .sub-caret { display: block; }
         wqTabLatest: '最新數據',
         wqHistLoading: '正在查詢官方歷史記錄…',
         wqHistNoData: '官方快照沒有此測站的歷史記錄',
+        chartEnlarge: '點擊圖表放大',
+        chartClose: '關閉',
         wqHistFailed: '歷史記錄載入失敗，請關閉再重開此彈窗',
         habitatNote: '注意：生境圖來自已核准的環境影響評估報告，涵蓋範圍限於各報告的研究區，並非全港生境調查；類別與界線以個別報告為準。'
       },
@@ -950,6 +997,8 @@ body.has-subtabs .sub-caret { display: block; }
         wqTabLatest: 'Latest',
         wqHistLoading: 'Loading official historical records…',
         wqHistNoData: 'The official snapshot has no history for this station',
+        chartEnlarge: 'Click the chart to enlarge',
+        chartClose: 'Close',
         wqHistFailed: 'Failed to load the historical records; close and reopen this popup',
         habitatNote: 'Note: habitat maps come from approved Environmental Impact Assessment reports and cover only each report\u2019s study area, not a territory-wide habitat survey. Categories and boundaries follow the individual reports.'
       },
@@ -2025,7 +2074,49 @@ body.has-subtabs .sub-caret { display: block; }
      取回泳灘圖層用 map._popup._source —— 實測它就是該泳灘的圖層物件。
      不可用 DOM 元素的 _leaflet_id 反查：泳灘標記放在 markerClusterGroup 內，
      DOM 上的 id 屬於叢集的代理標記，與圖層 id 不同（實測 DOM=1941、圖層=190）。 */
+  /* ---- 圖表放大 ----
+     彈窗內的歷史圖表很小（寬約 254px），點一下就在畫面中央放大重看。同一張 SVG
+     帶 viewBox，放大時刻度與日期會一起等比放大，不會失真。
+     Esc／點背景／按 × 都可關閉。 */
+  let chartModal = null;
+  function closeChartModal() {
+    if (!chartModal) return;
+    chartModal.hidden = true;
+    chartModal.querySelector('.chart-modal__body').innerHTML = '';
+  }
+  function openChartModal(svgHtml, title) {
+    if (!chartModal) {
+      chartModal = document.createElement('div');
+      chartModal.className = 'chart-modal';
+      chartModal.hidden = true;
+      chartModal.innerHTML =
+        '<div class="chart-modal__backdrop"></div>' +
+        '<div class="chart-modal__box" role="dialog" aria-modal="true">' +
+          '<div class="chart-modal__head">' +
+            '<h4 class="chart-modal__title"></h4>' +
+            '<button type="button" class="chart-modal__close" aria-label="' +
+              esc(t('ui.chartClose')) + '">\u00d7</button>' +
+          '</div>' +
+          '<div class="chart-modal__body"></div>' +
+        '</div>';
+      document.body.appendChild(chartModal);
+      chartModal.querySelector('.chart-modal__backdrop').addEventListener('click', closeChartModal);
+      chartModal.querySelector('.chart-modal__close').addEventListener('click', closeChartModal);
+      document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeChartModal(); });
+    }
+    chartModal.querySelector('.chart-modal__title').textContent = title || '';
+    chartModal.querySelector('.chart-modal__body').innerHTML = svgHtml;
+    chartModal.hidden = false;
+  }
+
   function onMapPopupClick(e) {
+    /* 點圖表即放大（放在其他按鈕判斷之前；圖表本身不是按鈕，不會互相干擾） */
+    const chartEl = e.target && e.target.closest ? e.target.closest('.hb-chart[data-chart-title]') : null;
+    if (chartEl) {
+      const svg = chartEl.querySelector('svg');
+      if (svg) openChartModal(svg.outerHTML, chartEl.getAttribute('data-chart-title'));
+      return;
+    }
     /* 海水／河溪彈窗的「最新數據／歷史記錄」切換（版面與泳灘水質卡一致）。
        快照是首次進入歷史檢視時才抓；抓完要重畫，故完成後再關閉並重開同一彈窗。 */
     const wqBtn = e.target && e.target.closest ? e.target.closest('[data-wq-view]') : null;
@@ -2230,38 +2321,31 @@ body.has-subtabs .sub-caret { display: block; }
   /* 把序列畫成簡單長條圖（純 SVG，不引入圖表庫）。
      顏色沿用官方泳灘等級色盤（該色盤本身即按大腸桿菌水平劃分）；
      圖例與彈窗都註明官方並無為歷史數據評級，避免誤讀成官方等級。 */
+  /* 序列已按 OBJECTID 由新至舊排序，故最舊的在陣列末端 */
+  function histBeachSpanDays(series) {
+    if (!series || series.length < 2) return null;
+    const a = histBeachParseDate(series[series.length - 1].rawDate);
+    const b = histBeachParseDate(series[0].rawDate);
+    return (a && b) ? Math.round((b - a) / 86400000) : null;
+  }
+  /* 與海水／河溪歷史圖共用同一個外框（chartFrame），故也有 Y 軸單位與刻度標籤；
+     長條仍按官方泳灘等級色盤上色（僅作視覺分級，非官方評級）。 */
   function histBeachChart(series) {
     if (!series || !series.length) return '';
     const nums = series.map((s) => histBeachNum(s.ecoli) || 0);
     const max = Math.max.apply(null, nums.concat([1]));
-    /* 點數多時自動收窄長條：96 點仍要落在同一個寬度內 */
-    const W = 268, H = 64;
-    const gap = series.length > 60 ? 1 : 2;
-    const bw = Math.max(1.5, (W - gap * (series.length - 1)) / series.length);
+    const g = chartBarGeom(series.length);
     const bars = series.map((s, i) => {
       const v = nums[i];
-      const h = Math.max(1, Math.round((v / max) * (H - 6)));
-      const g = beachGradeFromEcoli(v);
-      const c = (g && BEACH_COLOR[g]) || HIST_BEACH_COLOR;
-      const x = i * (bw + gap);
-      return `<rect x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" ` +
-        `height="${h}" fill="${c}"></rect>`;
+      const h = Math.max(1, Math.round((v / max) * g.plotH));
+      const gr = beachGradeFromEcoli(v);
+      const c = (gr && BEACH_COLOR[gr]) || HIST_BEACH_COLOR;
+      return `<rect x="${(CHART.x0 + i * (g.bw + g.gap)).toFixed(2)}" y="${(CHART.y1 - h).toFixed(1)}" ` +
+        `width="${g.bw.toFixed(2)}" height="${h}" fill="${c}"></rect>`;
     }).join('');
-    /* 序列已按 OBJECTID 由新至舊排序，故最舊的在陣列末端 */
     const oldest = series[series.length - 1], newest = series[0];
-    const spanDays = (() => {
-      const a = histBeachParseDate(oldest.rawDate), b = histBeachParseDate(newest.rawDate);
-      return (a && b) ? Math.round((b - a) / 86400000) : null;
-    })();
-    return `<div class="hb-chart">
-      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
-           aria-label="${esc(t('popup.histTrend'))}">${bars}</svg>
-      <div class="hb-axis">
-        <span>${esc(oldest.dateStr || '')}</span>
-        <span>${spanDays == null ? '' : esc(t('popup.histSpan').replace('{n}', String(spanDays)))}</span>
-        <span>${esc(newest.dateStr || '')}</span>
-      </div>
-    </div>`;
+    return chartFrame(bars, max, t('popup.ecoliShort'), t('popup.histTrend'),
+      oldest.dateStr || '', newest.dateStr || '');
   }
 
   /* 按需要抓取單一泳灘的歷史序列（只在使用者按下「歷史記錄」時呼叫）。
@@ -2311,6 +2395,11 @@ body.has-subtabs .sub-caret { display: block; }
     const avg = nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : null;
     const peak = nums.length ? Math.max.apply(null, nums) : null;
     let rows = rowStack(t('popup.histTrend'), histBeachChart(series));
+    /* 跨度原本畫在圖下的軸列；日期已移進圖表內（與海水一致），此處只留跨度 */
+    const spanDays = histBeachSpanDays(series);
+    if (spanDays != null) {
+      rows += `<div class="cp-sub">${esc(t('popup.histSpan').replace('{n}', String(spanDays)))}</div>`;
+    }
     const g = beachGradeFromEcoli(histBeachNum(latest.ecoli));
     rows += row(t('popup.ecoliLatest'),
       latest.ecoli == null ? '—'
@@ -2369,28 +2458,22 @@ body.has-subtabs .sub-caret { display: block; }
      故不自行分級上色（與其他圖層一致的做法）。which: 1 = 溶解氧、2 = 生化需氧量
      版面：左邊留位放 Y 軸刻度與單位，下面留位放日期；viewBox + width:100%，
      令圖表隨彈窗寬度一起放大，看得更清楚。 */
-  function wqChart(series, which, color, label, unit) {
-    /* 有些河溪測站只公佈溶解氧、沒有生化需氧量 —— 整條序列都是缺值時不要畫
-       一排零高度的假長條，直接標示「沒有數據」。 */
-    const has = series.some((s) => { const v = parseFloat(s[which]); return isFinite(v); });
-    if (!has) {
-      return `<div class="hb-chart hb-chart-empty"><span class="cp-sub">${esc(t('ui.wqHistNoData'))}</span></div>`;
-    }
-    const nums = series.map((s) => { const v = parseFloat(s[which]); return isFinite(v) ? v : 0; });
-    const max = Math.max.apply(null, nums.concat([0.0001]));
-    const W = 260, H = 120;
-    const x0 = 32, x1 = 258, y0 = 20, y1 = 98;
-    const plotW = x1 - x0, plotH = y1 - y0;
-    /* 360 個採樣也要全部塞進同一個寬度：點數多時不留間隙，且不設下限
-       （先前用 max(1.2, …) 會令長條總寬超出繪圖區，後半被裁掉）。 */
-    const gap = series.length > 120 ? 0 : (series.length > 60 ? 1 : 2);
-    const bw = Math.max(0.35, (plotW - gap * (series.length - 1)) / series.length);
-    const bars = series.map((s, i) => {
-      const h = Math.max(1, Math.round((nums[i] / max) * plotH));
-      return `<rect x="${(x0 + i * (bw + gap)).toFixed(2)}" y="${(y1 - h).toFixed(1)}" ` +
-        `width="${bw.toFixed(2)}" height="${h}" fill="${color}"></rect>`;
-    }).join('');
-    /* Y 軸：0 / 一半 / 最大，附淡格線與數值標籤 */
+  /* ---- 歷史圖表共用外框 ----
+     海水／河溪與泳灘的歷史圖共用同一個外框，版面才一致：左邊留位放 Y 軸刻度與
+     單位、0／一半／最大三條淡格線、下面留位放最舊／最新日期。viewBox + width:100%
+     令圖表隨容器寬度縮放 —— 放大時也一樣清楚，不會失真。 */
+  const CHART = { W: 260, H: 120, x0: 32, x1: 258, y0: 20, y1: 98 };
+  /* 360 個採樣也要全部塞進同一個寬度：點數多時不留間隙，且不設下限
+     （先前用 max(1.2, …) 會令長條總寬超出繪圖區，後半被裁掉）。 */
+  function chartBarGeom(n) {
+    const plotW = CHART.x1 - CHART.x0;
+    const gap = n > 120 ? 0 : (n > 60 ? 1 : 2);
+    const bw = Math.max(0.35, (plotW - gap * (n - 1)) / n);
+    return { gap, bw, plotH: CHART.y1 - CHART.y0 };
+  }
+  function chartFrame(bars, max, unit, label, oldest, newest) {
+    const { W, H, x0, x1, y1 } = CHART;
+    const plotH = y1 - CHART.y0;
     const nice = (v) => (v >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
     const yAxis = [0, max / 2, max].map((tv) => {
       const y = y1 - (tv / max) * plotH;
@@ -2399,8 +2482,8 @@ body.has-subtabs .sub-caret { display: block; }
         `<text x="${x0 - 4}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="10" ` +
         `fill="currentColor" fill-opacity="0.7">${esc(nice(tv))}</text>`;
     }).join('');
-    const oldest = series[0][0] || '', newest = series[series.length - 1][0] || '';
-    return `<div class="hb-chart">
+    /* data-chart-title 同時是「可放大」的標記（見 openChartModal） */
+    return `<div class="hb-chart" data-chart-title="${esc(label)}" title="${esc(t('ui.chartEnlarge'))}">
       <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}">
         <text x="1" y="12" font-size="10" fill="currentColor" fill-opacity="0.7">${esc(unit || '')}</text>
         ${yAxis}
@@ -2410,6 +2493,26 @@ body.has-subtabs .sub-caret { display: block; }
         <text x="${x1}" y="${y1 + 15}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.7">${esc(newest)}</text>
       </svg>
     </div>`;
+  }
+  /* 官方沒有為溶解氧／生化需氧量訂等級，故不自行分級上色（與其他圖層一致）。
+     which: 1 = 溶解氧、2 = 生化需氧量 */
+  function wqChart(series, which, color, label, unit) {
+    /* 有些河溪測站只公佈溶解氧、沒有生化需氧量 —— 整條序列都是缺值時不要畫
+       一排零高度的假長條，直接標示「沒有數據」。 */
+    const has = series.some((s) => { const v = parseFloat(s[which]); return isFinite(v); });
+    if (!has) {
+      return `<div class="hb-chart hb-chart-empty"><span class="cp-sub">${esc(t('ui.wqHistNoData'))}</span></div>`;
+    }
+    const nums = series.map((s) => { const v = parseFloat(s[which]); return isFinite(v) ? v : 0; });
+    const max = Math.max.apply(null, nums.concat([0.0001]));
+    const g = chartBarGeom(series.length);
+    const bars = series.map((s, i) => {
+      const h = Math.max(1, Math.round((nums[i] / max) * g.plotH));
+      return `<rect x="${(CHART.x0 + i * (g.bw + g.gap)).toFixed(2)}" y="${(CHART.y1 - h).toFixed(1)}" ` +
+        `width="${g.bw.toFixed(2)}" height="${h}" fill="${color}"></rect>`;
+    }).join('');
+    const oldest = series[0][0] || '', newest = series[series.length - 1][0] || '';
+    return chartFrame(bars, max, unit, label, oldest, newest);
   }
   /* 最新值／期間平均（自行計算，會標明） */
   function wqStats(series, which) {
