@@ -33,6 +33,10 @@
   --header-h: 60px;
   --bottomnav-h: 0px;
   --subtab-h: 42px;
+  /* 字體縮放倍率（1 = 最小，即原本大小）。所有文字 font-size 都乘上這個值，
+     由右上角的 A−／A+ 控制（見 applyFontScale）。圖示（18/19/22/26px）不縮放，
+     以免撐爆固定高度的按鈕。 */
+  --fs: 1;
 }
 [data-theme="dark"] {
   --bg-primary: #1a1a2e;
@@ -77,7 +81,7 @@ body { overflow: hidden; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tab-active) 18%, transparent);
 }
 .brand h1 {
-  font-size: 15px; font-weight: 700; margin: 0; white-space: nowrap;
+  font-size: calc(15px * var(--fs)); font-weight: 700; margin: 0; white-space: nowrap;
   letter-spacing: .2px;
 }
 
@@ -91,7 +95,7 @@ body { overflow: hidden; }
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 44px; padding: 0 12px;
   border: 0; background: transparent; cursor: pointer;
-  color: var(--text-secondary); font-size: 13px; font-weight: 600;
+  color: var(--text-secondary); font-size: calc(13px * var(--fs)); font-weight: 600;
   font-family: inherit; white-space: nowrap;
   border-radius: 8px 8px 0 0;
   border-bottom: 3px solid transparent;
@@ -104,7 +108,7 @@ body { overflow: hidden; }
   background: color-mix(in srgb, var(--tab-active) 8%, transparent);
 }
 .tab:focus-visible { outline: 2px solid var(--tab-active); outline-offset: 2px; }
-.tab .tab-icon { font-size: 15px; line-height: 1; }
+.tab .tab-icon { font-size: calc(15px * var(--fs)); line-height: 1; }
 .tab .err-dot {
   position: absolute; top: 6px; right: 6px;
   width: 8px; height: 8px; border-radius: 50%;
@@ -161,7 +165,7 @@ body.has-subtabs .sub-caret { display: block; }
   height: 100%; padding: 0 13px;
   border: 0; border-radius: 999px; background: transparent;
   color: var(--text-secondary); font-family: inherit;
-  font-size: 12.5px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  font-size: calc(12.5px * var(--fs)); font-weight: 600; white-space: nowrap; cursor: pointer;
   transition: color .18s, background-color .18s;
 }
 .sub-tab:hover { color: var(--text-primary); background: var(--bg-secondary); }
@@ -174,13 +178,28 @@ body.has-subtabs .sub-caret { display: block; }
   display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid var(--border-color); border-radius: 10px;
   background: var(--bg-secondary); color: var(--text-primary);
-  cursor: pointer; font-size: 15px; font-family: inherit; font-weight: 600;
+  cursor: pointer; font-size: calc(15px * var(--fs)); font-family: inherit; font-weight: 600;
   transition: background-color .18s, border-color .18s, transform .12s;
 }
 .icon-btn:hover { border-color: var(--tab-active); color: var(--tab-active); }
 .icon-btn:active { transform: scale(.96); }
 .icon-btn:focus-visible { outline: 2px solid var(--tab-active); outline-offset: 2px; }
-#lang-btn { font-size: 12px; letter-spacing: .3px; }
+#lang-btn { font-size: calc(12px * var(--fs)); letter-spacing: .3px; }
+
+/* 字體大小控制（A− / A+）。兩顆併成一段，一看便知是一組；
+   最小為目前大小（--fs: 1），只能放大。 */
+.fs-group { display: inline-flex; align-items: stretch; }
+.fs-group .fs-btn {
+  min-width: 40px; padding: 0 6px; border-radius: 0; letter-spacing: 0;
+}
+.fs-group .fs-btn:first-child { border-radius: 10px 0 0 10px; }
+.fs-group .fs-btn:last-child { border-radius: 0 10px 10px 0; margin-left: -1px; }
+.fs-group .fs-btn:focus-visible { z-index: 1; }
+.fs-group .fs-btn:disabled { opacity: .38; cursor: default; }
+.fs-group .fs-btn:disabled:hover {
+  border-color: var(--border-color); color: var(--text-primary);
+}
+.fs-group .fs-btn:disabled:active { transform: none; }
 
 /* ============================================================
    地圖
@@ -202,18 +221,18 @@ body.has-subtabs .sub-caret { display: block; }
   background: var(--popup-bg); color: var(--popup-text);
   border: 1px solid var(--border-color); border-radius: 10px;
   box-shadow: var(--shadow);
-  font-size: 12px; overflow: hidden;
+  font-size: calc(12px * var(--fs)); overflow: hidden;
 }
 .legend-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 9px 12px; font-weight: 700; font-size: 12.5px;
+  padding: 9px 12px; font-weight: 700; font-size: calc(12.5px * var(--fs));
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   cursor: default;
 }
 .legend-toggle {
   display: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--text-secondary); font-size: 13px; font-family: inherit;
+  color: var(--text-secondary); font-size: calc(13px * var(--fs)); font-family: inherit;
   min-width: 28px; min-height: 28px;
 }
 .legend-body { padding: 9px 12px 11px; }
@@ -225,12 +244,12 @@ body.has-subtabs .sub-caret { display: block; }
 .legend-line { width: 18px; height: 0; border-top: 3px solid #8e44ad; border-radius: 2px; flex: 0 0 auto; }
 .legend-note {
   margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color);
-  color: var(--text-secondary); font-size: 10.5px; line-height: 1.45;
+  color: var(--text-secondary); font-size: calc(10.5px * var(--fs)); line-height: 1.45;
 }
 .legend-sub { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border-color); }
 .legend-sub label {
   display: flex; align-items: center; gap: 7px; margin: 5px 0;
-  cursor: pointer; font-size: 11.5px; color: var(--text-primary);
+  cursor: pointer; font-size: calc(11.5px * var(--fs)); color: var(--text-primary);
 }
 .legend-sub input { accent-color: var(--tab-active); width: 15px; height: 15px; }
 
@@ -250,18 +269,18 @@ body.has-subtabs .sub-caret { display: block; }
 }
 .leaflet-container a.leaflet-popup-close-button:hover { color: var(--text-primary); }
 
-.custom-popup { max-width: 280px; width: 280px; font-size: 13px; color: var(--popup-text); }
+.custom-popup { max-width: 280px; width: 280px; font-size: calc(13px * var(--fs)); color: var(--popup-text); }
 .custom-popup .cp-title {
-  font-size: 16px; font-weight: 700; line-height: 1.35;
+  font-size: calc(16px * var(--fs)); font-weight: 700; line-height: 1.35;
   padding: 12px 34px 8px 13px; margin: 0;
   border-bottom: 1px solid var(--border-color);
 }
 .custom-popup .cp-body { padding: 10px 13px 12px; }
 .custom-popup .cp-row { display: flex; gap: 8px; margin: 6px 0; line-height: 1.45; }
 .custom-popup .cp-label {
-  flex: 0 0 auto; min-width: 84px; color: var(--text-secondary); font-size: 12px;
+  flex: 0 0 auto; min-width: 84px; color: var(--text-secondary); font-size: calc(12px * var(--fs));
 }
-.custom-popup .cp-value { flex: 1 1 auto; word-break: break-word; }
+.custom-popup .cp-value { flex: 1 1 auto; min-width: 0; word-break: break-word; }
 /* 寬內容列：標籤在上、內容在下。用於「充電器（速度 · 插頭標準 · 數目）」這類
    內容比標籤長得多的情況 —— 原本單行 flex 會令徽章擠在右邊並超出卡片。 */
 .custom-popup .cp-row.cp-row--stack { display: block; }
@@ -270,18 +289,18 @@ body.has-subtabs .sub-caret { display: block; }
 /* 每個徽章獨立一行，確保多個「速度 · 插頭標準 · 數目」不會互相擠壓 */
 .custom-popup .cp-chargers { display: block; }
 .custom-popup .cp-chargers .badge { display: inline-block; margin: 0 0 4px; }
-.custom-popup .cp-address { color: var(--text-secondary); font-size: 12px; }
+.custom-popup .cp-address { color: var(--text-secondary); font-size: calc(12px * var(--fs)); }
 /* 許可證編號：等寬字體，方便對照 */
 .custom-popup .cp-permit-no {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-weight: 700; font-size: 12.5px; letter-spacing: .02em;
+  font-weight: 700; font-size: calc(12.5px * var(--fs)); letter-spacing: .02em;
   background: var(--bg-secondary); border: 1px solid var(--border-color);
   border-radius: 4px; padding: 1px 6px;
 }
 /* 彈窗內的檢視切換（水質等級 / 歷史記錄） */
 .custom-popup .cp-tabs { display: flex; gap: 6px; }
 .custom-popup .cp-tab {
-  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  font: inherit; font-size: calc(12px * var(--fs)); font-weight: 600; cursor: pointer;
   padding: 4px 12px; border-radius: 999px;
   border: 1px solid var(--border-color);
   background: var(--bg-secondary); color: var(--text-secondary);
@@ -294,15 +313,15 @@ body.has-subtabs .sub-caret { display: block; }
 .custom-popup .hb-chart svg { display: block; background: var(--bg-secondary); border-radius: 4px; }
 .custom-popup .hb-axis {
   display: flex; justify-content: space-between; align-items: baseline;
-  color: var(--text-secondary); font-size: 10.5px; margin-top: 2px; gap: 6px;
+  color: var(--text-secondary); font-size: calc(10.5px * var(--fs)); margin-top: 2px; gap: 6px;
 }
 .custom-popup .hb-axis span:nth-child(2) { opacity: .75; }
-.custom-popup .cp-sub { color: var(--text-secondary); font-size: 11.5px; margin-top: 2px; }
+.custom-popup .cp-sub { color: var(--text-secondary); font-size: calc(11.5px * var(--fs)); margin-top: 2px; }
 
 /* 彩色標籤：關鍵數值 */
 .badge {
   display: inline-block; padding: 2px 9px; border-radius: 999px;
-  font-weight: 700; font-size: 12.5px; color: #fff; line-height: 1.5;
+  font-weight: 700; font-size: calc(12.5px * var(--fs)); color: #fff; line-height: 1.5;
   white-space: nowrap;
 }
 .badge.aqhi-1 { background: #009e49; }
@@ -322,10 +341,10 @@ body.has-subtabs .sub-caret { display: block; }
 
 .custom-popup .cp-foot {
   margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border-color);
-  color: var(--text-secondary); font-size: 10.5px; line-height: 1.5;
+  color: var(--text-secondary); font-size: calc(10.5px * var(--fs)); line-height: 1.5;
 }
 .custom-popup .cp-desc {
-  color: var(--text-secondary); font-size: 11px; line-height: 1.5;
+  color: var(--text-secondary); font-size: calc(11px * var(--fs)); line-height: 1.5;
   margin: 0 0 8px; font-style: italic;
 }
 .custom-popup .cp-desc + .cp-title { border-top: 0; }
@@ -350,7 +369,7 @@ body.has-subtabs .sub-caret { display: block; }
   box-shadow: 0 1px 5px rgba(0,0,0,.4);
   display: flex; align-items: center; justify-content: center;
 }
-.pin span { transform: rotate(45deg); font-size: 10px; line-height: 1; color: #fff; }
+.pin span { transform: rotate(45deg); font-size: calc(10px * var(--fs)); line-height: 1; color: #fff; }
 
 /* ============================================================
    載入指示器
@@ -362,7 +381,7 @@ body.has-subtabs .sub-caret { display: block; }
   padding: 9px 16px; border-radius: 999px;
   background: var(--popup-bg); color: var(--popup-text);
   border: 1px solid var(--border-color); box-shadow: var(--shadow);
-  font-size: 12.5px; font-weight: 600;
+  font-size: calc(12.5px * var(--fs)); font-weight: 600;
 }
 .loading.show { display: flex; }
 .spinner {
@@ -379,7 +398,7 @@ body.has-subtabs .sub-caret { display: block; }
   z-index: 1300; opacity: 0; pointer-events: none;
   max-width: min(90vw, 420px);
   padding: 10px 16px; border-radius: 10px;
-  background: #b3261e; color: #fff; font-size: 12.5px; line-height: 1.45;
+  background: #b3261e; color: #fff; font-size: calc(12.5px * var(--fs)); line-height: 1.45;
   box-shadow: var(--shadow-strong);
   transition: opacity .25s, transform .25s;
 }
@@ -392,12 +411,12 @@ body.has-subtabs .sub-caret { display: block; }
   padding: 9px 12px; border-radius: 10px; cursor: pointer;
   background: var(--popup-bg); color: var(--popup-text);
   border: 1px solid var(--border-color); box-shadow: var(--shadow);
-  font-size: 12px; font-family: inherit; font-weight: 600;
+  font-size: calc(12px * var(--fs)); font-family: inherit; font-weight: 600;
 }
 .a2hs.show { display: flex; }
 .a2hs .close-x {
   border: 0; background: transparent; color: var(--text-secondary);
-  cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 4px;
+  cursor: pointer; font-size: calc(15px * var(--fs)); line-height: 1; padding: 2px 4px;
 }
 
 /* 螢幕閱讀器專用 */
@@ -410,7 +429,7 @@ body.has-subtabs .sub-caret { display: block; }
    響應式：平板 768–1024
    ============================================================ */
 @media (max-width: 1024px) {
-  .brand h1 { font-size: 14px; }
+  .brand h1 { font-size: calc(14px * var(--fs)); }
   .tab .tab-label { display: none; }
   .tab { padding: 0 14px; }
   .tab .tab-icon { font-size: 18px; }
@@ -423,7 +442,10 @@ body.has-subtabs .sub-caret { display: block; }
 @media (max-width: 767px) {
   :root { --header-h: 52px; --bottomnav-h: 60px; }
   .topbar { padding: 0 10px; }
-  .brand h1 { font-size: 13px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+  /* 手機多了 A−／A+ 兩顆按鈕，品牌必須可以縮（否則頂欄會爆出畫面）。
+     標題改為依可用寬度自動省略，不再用固定 46vw。 */
+  .brand { flex: 0 1 auto; min-width: 0; }
+  .brand h1 { font-size: calc(13px * var(--fs)); max-width: none; overflow: hidden; text-overflow: ellipsis; }
   .tabs { display: none; }                       /* 手機隱藏頂部 Tab */
 
   .actions { margin-left: auto; }
@@ -444,7 +466,7 @@ body.has-subtabs .sub-caret { display: block; }
     flex: 1 1 0; flex-direction: column; gap: 3px;
     justify-content: center; min-height: 44px; padding: 4px 2px;
     border-radius: 0; border-bottom: 0; border-top: 3px solid transparent;
-    font-size: 10px;
+    font-size: calc(10px * var(--fs));
   }
   .bottom-nav .tab[aria-selected="true"] {
     border-top-color: var(--tab-active); background: transparent;
@@ -486,10 +508,10 @@ body.has-subtabs .sub-caret { display: block; }
   .custom-popup {
     max-width: min(300px, calc(100vw - 60px));
     width: min(300px, calc(100vw - 60px));
-    font-size: 12px;
+    font-size: calc(12px * var(--fs));
   }
-  .custom-popup .cp-title { font-size: 15px; padding-right: 38px; }
-  .custom-popup .cp-label { min-width: 72px; font-size: 11.5px; }
+  .custom-popup .cp-title { font-size: calc(15px * var(--fs)); padding-right: 38px; }
+  .custom-popup .cp-label { min-width: 72px; font-size: calc(11.5px * var(--fs)); }
   .leaflet-container a.leaflet-popup-close-button {
     font-size: 26px; width: 40px; height: 40px; padding-top: 7px;
   }
@@ -518,6 +540,12 @@ body.has-subtabs .sub-caret { display: block; }
             aria-label="切換深色/淺色模式" title="切換深色/淺色模式">🌙</button>
     <button class="icon-btn" id="lang-btn" type="button"
             aria-label="切換語言 中文/English" title="切換語言">中 / EN</button>
+    <div class="fs-group" role="group" id="fs-group" aria-label="字體大小">
+      <button class="icon-btn fs-btn" id="fs-down" type="button"
+              aria-label="縮小字體" title="縮小字體">A−</button>
+      <button class="icon-btn fs-btn" id="fs-up" type="button"
+              aria-label="放大字體" title="放大字體">A+</button>
+    </div>
   </div>
 </header>
 
@@ -708,6 +736,9 @@ body.has-subtabs .sub-caret { display: block; }
         themeLight: '切換至淺色模式',
         themeDark: '切換至深色模式',
         langSwitch: '切換語言',
+        fsGroup: '字體大小',
+        fsDecrease: '縮小字體',
+        fsIncrease: '放大字體',
         officialName: '官方數據集名稱',
         evAvailabilityLink: '查看官方實時可用情況',
         evNote: '注意：充電器數目為官方數據集的靜態數目；「實時可用情況」為官方即時數字，經定時快照取得，只涵蓋部分位置。',
@@ -875,6 +906,9 @@ body.has-subtabs .sub-caret { display: block; }
         themeLight: 'Switch to light mode',
         themeDark: 'Switch to dark mode',
         langSwitch: 'Switch language',
+        fsGroup: 'Font size',
+        fsDecrease: 'Decrease font size',
+        fsIncrease: 'Increase font size',
         officialName: 'Official dataset name',
         evAvailabilityLink: 'Official real-time availability',
         evNote: 'Note: the charger counts are the official static counts. "Real-time availability" is the official live figure, obtained via a scheduled snapshot, and only covers some locations.',
@@ -1091,7 +1125,10 @@ body.has-subtabs .sub-caret { display: block; }
      3. 全域狀態
      ====================================================================== */
   const HK_CENTER = [22.35, 114.15];
-  const STORAGE = { theme: 'hk-env-map-theme', lang: 'hk-env-map-lang' };
+  const STORAGE = { theme: 'hk-env-map-theme', lang: 'hk-env-map-lang', fs: 'hk-env-map-fs' };
+  /* 字體大小級數（倍率）。索引 0 = 原本大小，即最小；只往上加，不縮到更小。
+     所有文字 font-size 都是 calc(…px * var(--fs))，故改 --fs 即全站生效。 */
+  const FS_STEPS = [1, 1.15, 1.3, 1.45, 1.6];
   const CACHE_TTL = 24 * 60 * 60 * 1000;      // 24 小時
   const CLUSTER_THRESHOLD = 500;              // 超過 500 點自動聚合
   const DEBOUNCE_MS = 200;
@@ -1121,6 +1158,7 @@ body.has-subtabs .sub-caret { display: block; }
   const state = {
     lang: 'tc',
     theme: 'light',
+    fs: 0,                      // 字體大小級數索引（見 FS_STEPS），0 = 最小
     active: 'air',              // 目前分頁 id（＝TABS 的 id）
     waterSub: 'beach',          // 「水質數據」分頁下選用的子分頁＝圖層 id
     layers: { air: null, beach: null, marine: null, river: null, recycle: null, ev: null, noise: null, cnp: null, habitat: null },
@@ -3081,6 +3119,29 @@ body.has-subtabs .sub-caret { display: block; }
   }
 
   /* ======================================================================
+     13b. 字體大小（無障礙：長者友善）
+     ====================================================================== */
+  /* 以 --fs 倍率縮放全站文字（所有文字 font-size 都是 calc(…px * var(--fs))）。
+     索引 0 就是原本大小，即最小；只可往上加。到頂／到底時停用按鈕，
+     讓使用者一眼看出還有沒有得加，而不是以為按鈕壞了。 */
+  function applyFontScale(idx, persist) {
+    const n = Number(idx);
+    const i = Math.max(0, Math.min(FS_STEPS.length - 1, isNaN(n) ? 0 : n));
+    state.fs = i;
+    document.documentElement.style.setProperty('--fs', String(FS_STEPS[i]));
+
+    const down = $('#fs-down'), up = $('#fs-up'), group = $('#fs-group');
+    if (down) down.disabled = (i === 0);
+    if (up) up.disabled = (i === FS_STEPS.length - 1);
+    if (group) group.setAttribute('aria-label', t('ui.fsGroup'));
+    if (down) { down.setAttribute('aria-label', t('ui.fsDecrease')); down.title = t('ui.fsDecrease'); }
+    if (up) { up.setAttribute('aria-label', t('ui.fsIncrease')); up.title = t('ui.fsIncrease'); }
+
+    if (persist) { try { localStorage.setItem(STORAGE.fs, String(i)); } catch (e) {} }
+  }
+  function stepFontScale(delta) { applyFontScale(state.fs + delta, true); }
+
+  /* ======================================================================
      14. 語言切換
      ====================================================================== */
   function applyLang(lang, persist) {
@@ -3133,6 +3194,9 @@ body.has-subtabs .sub-caret { display: block; }
     const a2hsTxt = $('#a2hs-text');
     if (a2hsTxt) a2hsTxt.textContent = t('ui.a2hs');
 
+    /* 字體大小按鈕的標籤／title 也要跟著語言走 */
+    applyFontScale(state.fs, false);
+
     if (persist) { try { localStorage.setItem(STORAGE.lang, lang); } catch (e) {} }
   }
 
@@ -3164,6 +3228,8 @@ body.has-subtabs .sub-caret { display: block; }
     $('#lang-btn').addEventListener('click', () => {
       applyLang(state.lang === 'tc' ? 'en' : 'tc', true);
     });
+    $('#fs-down').addEventListener('click', () => stepFontScale(-1));
+    $('#fs-up').addEventListener('click', () => stepFontScale(1));
     $('#legend-head').addEventListener('click', () => {
       if (!isMobile()) return;
       legendTouched = true;
@@ -3239,11 +3305,13 @@ body.has-subtabs .sub-caret { display: block; }
   /* 啟動 */
   function boot() {
     // 讀取偏好
-    let theme = 'light', lang = 'tc';
+    let theme = 'light', lang = 'tc', fsIdx = 0;
     try {
       theme = localStorage.getItem(STORAGE.theme) || 'light';
       lang = localStorage.getItem(STORAGE.lang) || 'tc';
+      fsIdx = Number(localStorage.getItem(STORAGE.fs));
     } catch (e) {}
+    if (isNaN(fsIdx)) fsIdx = 0;      // 未儲存過（null → 0）或值壞掉都回到最小
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem(STORAGE.theme)) {
       theme = 'dark';
     }
@@ -3253,6 +3321,7 @@ body.has-subtabs .sub-caret { display: block; }
     buildTabs();
     applyTheme(theme, false);
     applyLang(lang, false);   // 會建立底圖與標籤圖層
+    applyFontScale(fsIdx, false);   // 套用已儲存的字體大小
     renderLegend();
     syncMobileUI();
     initPWA();

@@ -679,6 +679,91 @@ try {
   check('popup content stays inside its card at a narrow viewport',
     !!popFit && !popFit.err && popFit.innerR <= popFit.cardR + 1 && popFit.maxSpill === 0,
     popFit ? `viewport=${popFit.viewport} card=${popFit.cardW}px(r=${popFit.cardR}) content=${popFit.innerW}px(r=${popFit.innerR}) spill=${popFit.maxSpill}px` : 'no popup');
+
+  /* ---------- font-size control (A− / A+), elderly friendly ----------
+     The topbar buttons scale every text size through the `--fs` custom property.
+     Step 0 IS the original size, so A− must be disabled there and A+ must clamp
+     at the top. The choice persists in localStorage. */
+  const fsCtl = await evalJs(`(() => {
+    const up = document.getElementById('fs-up'), down = document.getElementById('fs-down');
+    if (!up || !down) return { present: false };
+    const fsVar = () => getComputedStyle(document.documentElement).getPropertyValue('--fs').trim();
+    const titlePx = () => parseFloat(getComputedStyle(document.getElementById('app-title')).fontSize);
+    const out = {
+      present: true,
+      initialFs: fsVar(),
+      initialDownDisabled: down.disabled,
+      initialUpDisabled: up.disabled
+    };
+    const t0 = titlePx();
+    up.click(); up.click();
+    out.afterTwoFs = fsVar();
+    out.titleGrew = titlePx() > t0;
+    out.stored = localStorage.getItem('hk-env-map-fs');
+    for (let i = 0; i < 10; i++) up.click();
+    out.maxFs = fsVar();
+    out.upDisabledAtMax = up.disabled;
+    for (let i = 0; i < 10; i++) down.click();
+    out.minFs = fsVar();
+    out.downDisabledAtMin = down.disabled;
+    return out;
+  })()`);
+  check('font-size A− / A+ control present in the topbar',
+    !!fsCtl && fsCtl.present === true, fsCtl && fsCtl.present ? 'both buttons' : 'missing');
+  check('font size starts at the smallest step (A− disabled, A+ enabled)',
+    !!fsCtl && fsCtl.initialFs === '1' && fsCtl.initialDownDisabled === true && fsCtl.initialUpDisabled === false,
+    fsCtl ? `--fs=${fsCtl.initialFs} down=${fsCtl.initialDownDisabled} up=${fsCtl.initialUpDisabled}` : '?');
+  check('A+ raises the scale and the rendered text grows',
+    !!fsCtl && parseFloat(fsCtl.afterTwoFs) > 1 && fsCtl.titleGrew === true,
+    fsCtl ? `--fs=${fsCtl.afterTwoFs} titleGrew=${fsCtl.titleGrew}` : '?');
+  check('font scale clamps at the top and disables A+',
+    !!fsCtl && fsCtl.maxFs === '1.6' && fsCtl.upDisabledAtMax === true,
+    fsCtl ? `--fs=${fsCtl.maxFs} upDisabled=${fsCtl.upDisabledAtMax}` : '?');
+  check('A− cannot go below the original size',
+    !!fsCtl && fsCtl.minFs === '1' && fsCtl.downDisabledAtMin === true,
+    fsCtl ? `--fs=${fsCtl.minFs} downDisabled=${fsCtl.downDisabledAtMin}` : '?');
+  check('font size choice is persisted',
+    !!fsCtl && fsCtl.stored !== null, fsCtl ? `stored=${fsCtl.stored}` : '?');
+
+  /* At the largest step the topbar must still fit and popups must still stay inside. */
+  const fsBig = await evalJs(`(async () => {
+    const up = document.getElementById('fs-up');
+    for (let i = 0; i < 10; i++) up.click();
+    await new Promise((r) => setTimeout(r, 400));
+    const tb = document.querySelector('.topbar');
+    const act = document.querySelector('.actions');
+    let popup = null;
+    const h = window.__hkEnvMap;
+    let marker = null;
+    h.layers.beach.eachLayer((l) => { if (!marker && l.feature && l.getLatLng) marker = l; });
+    if (marker) {
+      h.map.setView(marker.getLatLng(), 14, { animate: false });
+      marker.openPopup();
+      await new Promise((r) => setTimeout(r, 900));
+      const card = document.querySelector('.leaflet-popup-content-wrapper');
+      const inner = document.querySelector('.leaflet-popup-content .custom-popup');
+      if (card && inner) {
+        const c = card.getBoundingClientRect(), i = inner.getBoundingClientRect();
+        popup = { cardR: Math.round(c.right), innerR: Math.round(i.right), fits: i.right <= c.right + 1 };
+      }
+    }
+    return {
+      fs: getComputedStyle(document.documentElement).getPropertyValue('--fs').trim(),
+      headerScrollW: tb.scrollWidth, headerClientW: tb.clientWidth,
+      actionsRight: Math.round(act.getBoundingClientRect().right), viewport: window.innerWidth,
+      popup
+    };
+  })()`, true);
+  check('topbar still fits at the largest font step (narrow viewport)',
+    !!fsBig && fsBig.headerScrollW <= fsBig.headerClientW + 1 && fsBig.actionsRight <= fsBig.viewport + 1,
+    fsBig ? `--fs=${fsBig.fs} scrollW=${fsBig.headerScrollW} clientW=${fsBig.headerClientW} actionsRight=${fsBig.actionsRight} vw=${fsBig.viewport}` : '?');
+  check('popup still fits its card at the largest font step',
+    !!fsBig && !!fsBig.popup && fsBig.popup.fits === true,
+    fsBig && fsBig.popup ? `cardR=${fsBig.popup.cardR} innerR=${fsBig.popup.innerR}` : 'no popup');
+  /* restore the smallest step so later checks see the default UI */
+  await evalJs(`(() => { const d = document.getElementById('fs-down'); for (let i = 0; i < 10; i++) d.click(); })()`);
+  await sleep(300);
+
   await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   await sleep(400);
 
