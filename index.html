@@ -691,12 +691,10 @@ body.has-subtabs .sub-caret { display: block; }
         habitat: '環評報告中的生境圖'
       },
       datasetDescriptions: {
-        airNetwork: '香港空氣質素監測網絡由一般和路邊空氣質素監測站組成，分別持續監測大氣和路邊的污染物水平。',
         aqhi: '現時各個一般及路邊空氣質素監測站的空氣質素健康指數。',
         beachGrading: '官方按 6 個地區列出的最新泳灘水質等級資料（最新資料會在抽取樣本後 48 小時內更新）。',
         marineWater: '官方按 10 個水質管制區發布的海水水質監測站溶解氧及五天生化需氧量數據。',
         riverWater: '官方按 13 處主要河溪發布的下游水質監測站溶解氧及五天生化需氧量數據。',
-        cnp: '根據《噪音管制條例》簽發的建築噪音許可證資料，包括許可證類別、編號、簽發日期、有效期、承辦商及工地位置。',
         lnrs: '數據顯示在制作噪音地圖時鋪設低噪音路面的位置。',
         l10_2020: '2020 年噪音地圖最繁忙的交通時段的 L10(1 小時)噪音水平 (高度為 4 米)。',
         industrial: '數據顯示了根據《噪音管制條例》下技術備忘錄去決定「地區對噪音感應程度的級別」的工業區(影響因素)的位置。',
@@ -869,12 +867,10 @@ body.has-subtabs .sub-caret { display: block; }
         histBeachWQ: 'Historical Beach Water Quality Data'
       },
       datasetDescriptions: {
-        airNetwork: 'The Hong Kong Air Quality Monitoring Network comprises general and roadside air quality monitoring stations which continuously monitor the pollutant levels in the atmosphere and at the roadside respectively.',
         aqhi: 'Air Quality Health Index at various general and roadside air quality monitoring stations.',
         beachGrading: 'Latest beach water quality grading, listed by the official 6 districts (latest information is updated within 48 hours after sample collection).',
         marineWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) at marine monitoring stations, published by the official 10 Water Control Zones.',
         riverWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) at downstream monitoring stations of the 13 major inland watercourses.',
-        cnp: 'Construction noise permits issued under the Noise Control Ordinance, covering permit type, permit number, issue date, validity, permittee and site location.',
         lnrs: 'Data showing the location of low noise road surface when producing noise maps.',
         l10_2020: 'L10 (1 hour) noise level at 4m height during the busiest traffic hour in the 2020 noise map.',
         industrial: 'Data showing the location of industrial areas (contributing factor) for determining the "Acceptable Noise Levels" under the Technical Memorandum of the Noise Control Ordinance.',
@@ -2017,8 +2013,8 @@ body.has-subtabs .sub-caret { display: block; }
         rowStack(t('popup.lastUpdate'), esc(String(aqhi.publish_date).replace('T', ' ').slice(0, 16)));
     }
     rows += row(t('ui.dataFetched'), esc(state.meta.air || fmtDateTime(new Date())));
-    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.airNetwork'))}</p>`;
-    return popupShell(name || '—', desc, rows);
+    // 原本這裡有一行 datasetDescriptions.airNetwork 的說明；按需求移除，卡片直接由標題開始。
+    return popupShell(name || '—', '', rows);
   }
 
   /* ---- 泳灘 Popup ---- */
@@ -2255,10 +2251,10 @@ body.has-subtabs .sub-caret { display: block; }
           沒有「許可證編號」欄位 —— 無法用編號直達，也不能以網址預填。
        3. CSDI／data.gov.hk 的 API 只提供 WFS／WMS／ArcGIS REST（本圖層已在用），
           該圖層 hasAttachments=false，沒有許可證文件。 */
-    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.cnp'))}</p>`;
+    // 原本這裡有一行 datasetDescriptions.cnp 的說明；按需求移除，卡片直接由許可證編號開始。
     const search = `<a href="${CNP_SEARCH_URL}" target="_blank" rel="noopener">` +
       `${esc(t('ui.cnpSearchLink'))}</a>`;
-    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), desc, rows, search);
+    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), '', rows, search);
   }
 
   /* ---- 公眾可使用的電動車充電器 Popup ---- */
@@ -2970,7 +2966,7 @@ body.has-subtabs .sub-caret { display: block; }
         { type: 'dot', color: AQHI_COLOR['aqhi-4'], label: `${t('legend.veryHigh')} (AQHI 8–10)` },
         { type: 'dot', color: AQHI_COLOR['aqhi-5'], label: `${t('legend.serious')} (AQHI 10+)` }
       ],
-      note: t('datasetDescriptions.airNetwork') + '<br><br>' + t('datasetDescriptions.aqhi')
+      note: t('datasetDescriptions.aqhi')
     }),
     beach: () => ({
       title: t('datasetNames.beachGrading'),
@@ -3041,7 +3037,7 @@ body.has-subtabs .sub-caret { display: block; }
       return {
         title: t('datasetNames.cnp'),
         rows,
-        note: t('datasetDescriptions.cnp') + '<br><br>' + t('ui.cnpNote')
+        note: t('ui.cnpNote')
       };
     },
     recycle: () => ({

@@ -892,6 +892,49 @@ try {
     !!badgeFit && !badgeFit.err && badgeFit.worst <= 1 && badgeFit.pastCard === 0,
     badgeFit ? `cardRight=${badgeFit.cardR} badges=${badgeFit.count} worstOverflow=${badgeFit.worst}px pastCard=${badgeFit.pastCard} sample="${badgeFit.sample}"` : '?');
 
+  /* ---------- the air-network and CNP dataset blurbs are gone ----------
+     Both descriptions were removed outright: from the popup card that opened with
+     them, and from the legend note that reused the same string. Neither the English
+     nor the Chinese wording may appear anywhere again. */
+  const removedBlurbs = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    const cardDesc = (key) => {
+      let out = null;
+      h.layers[key].eachLayer((l) => {
+        if (out !== null || !l.feature) return;
+        const c = l.getPopup().getContent();
+        const node = L.DomUtil.create('div');
+        node.innerHTML = (typeof c === 'function') ? c(l) : String(c);
+        const d = node.querySelector('.cp-desc');
+        out = d ? d.textContent.trim() : '';
+      });
+      return out === null ? 'NO_POPUP' : out;
+    };
+    const click = async (id) => {
+      const b = document.querySelector('.tab[data-tab="' + id + '"]');
+      if (b) b.click();
+      await new Promise((r) => setTimeout(r, 1200));
+    };
+    const airDesc = cardDesc('air');
+    const cnpDesc = cardDesc('cnp');
+    await click('air');
+    const airNote = (document.getElementById('legend-body') || {}).textContent || '';
+    await click('cnp');
+    const cnpNote = (document.getElementById('legend-body') || {}).textContent || '';
+    return { airDesc, cnpDesc, airNote, cnpNote, lang: h.state.lang };
+  })()`, true);
+  check('the air and CNP popup cards no longer open with a dataset description',
+    !!removedBlurbs && removedBlurbs.airDesc === '' && removedBlurbs.cnpDesc === '',
+    removedBlurbs ? `air="${removedBlurbs.airDesc}" cnp="${removedBlurbs.cnpDesc}"` : '?');
+  check('the air legend note keeps only the AQHI description, not the network blurb',
+    !!removedBlurbs && !/Monitoring Network comprises|監測網絡由/.test(removedBlurbs.airNote) &&
+      /Air Quality Health Index|空氣質素健康指數/.test(removedBlurbs.airNote),
+    removedBlurbs ? `lang=${removedBlurbs.lang} note="${(removedBlurbs.airNote || '').trim().slice(0, 80)}"` : '?');
+  check('the CNP legend note keeps only the derived-status caveat, not the permit blurb',
+    !!removedBlurbs && !/Construction noise permits issued|建築噪音許可證資料/.test(removedBlurbs.cnpNote) &&
+      (removedBlurbs.cnpNote || '').trim().length > 0,
+    removedBlurbs ? `note="${(removedBlurbs.cnpNote || '').trim().slice(0, 80)}"` : '?');
+
   /* ---------- clicking a tab recenters the map on Hong Kong ----------
      Otherwise the map stays wherever the previous layer left it and the newly
      selected layer can be completely off-screen. */
