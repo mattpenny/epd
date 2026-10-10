@@ -630,9 +630,9 @@ body.has-subtabs .sub-caret { display: block; }
       datasetDescriptions: {
         airNetwork: '香港空氣質素監測網絡由一般和路邊空氣質素監測站組成，分別持續監測大氣和路邊的污染物水平。',
         aqhi: '現時各個一般及路邊空氣質素監測站的空氣質素健康指數。',
-        beachGrading: '最新泳灘水質等級資料（最新資料會在抽取樣本後48 小時內更新）。',
-        marineWater: '各海水水質監測站溶解氧及五天生化需氧量數據。',
-        riverWater: '主要河溪下游水質監測站溶解氧及五天生化需氧量數據。',
+        beachGrading: '官方按 6 個地區列出的最新泳灘水質等級資料（最新資料會在抽取樣本後 48 小時內更新）。',
+        marineWater: '官方按 10 個水質管制區發布的海水水質監測站溶解氧及五天生化需氧量數據。',
+        riverWater: '官方按 13 處主要河溪發布的下游水質監測站溶解氧及五天生化需氧量數據。',
         cnp: '根據《噪音管制條例》簽發的建築噪音許可證資料，包括許可證類別、編號、簽發日期、有效期、承辦商及工地位置。',
         lnrs: '數據顯示在制作噪音地圖時鋪設低噪音路面的位置。',
         l10_2020: '2020 年噪音地圖最繁忙的交通時段的 L10(1 小時)噪音水平 (高度為 4 米)。',
@@ -659,6 +659,7 @@ body.has-subtabs .sub-caret { display: block; }
         facilityType: '設施類別',
         openHours: '開放時間',
         district: '地區',
+        waterZone: '水質管制區',
         /* 以下欄位標籤與單位沿用環保署官方 CSV 的表頭原文 */
         stationCode: '監測站編號',
         samplingDate: '樣本日期',
@@ -721,7 +722,6 @@ body.has-subtabs .sub-caret { display: block; }
         errorHint: '載入失敗',
         noSamplingDate: '官方數據集未提供採樣日期',
         noSamplingNote: '注意：環保署「泳灘水質等級」數據集只公布最新等級，並無提供逐個泳灘的採樣日期。',
-        districtNote: '注意：泳灘數據集並無「地區」欄位，泳灘所屬地區按環保署官方泳灘名單對照標示。',
         waterParamNote: '注意：數據集只提供溶解氧及五天生化需氧量的實測值，並無官方等級評級，因此地圖不設顏色分級。數值若顯示為「<」代表低於檢測限。',
         cnpNote: '「現況」由官方「有效期」與今日日期推算，並非數據集原有欄位，僅供參考。',
         permitActive: '生效中',
@@ -800,9 +800,9 @@ body.has-subtabs .sub-caret { display: block; }
       datasetDescriptions: {
         airNetwork: 'The Hong Kong Air Quality Monitoring Network comprises general and roadside air quality monitoring stations which continuously monitor the pollutant levels in the atmosphere and at the roadside respectively.',
         aqhi: 'Air Quality Health Index at various general and roadside air quality monitoring stations.',
-        beachGrading: 'Latest beach water quality grading (latest information will be updated within 48 hours after sample collection).',
-        marineWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) data at Marine Water Quality Monitoring stations.',
-        riverWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) data at downstream monitoring stations of major rivers.',
+        beachGrading: 'Latest beach water quality grading, listed by the official 6 districts (latest information is updated within 48 hours after sample collection).',
+        marineWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) at marine monitoring stations, published by the official 10 Water Control Zones.',
+        riverWater: 'Dissolved Oxygen (DO) and 5-day Biochemical Oxygen Demand (BOD5) at downstream monitoring stations of the 13 major inland watercourses.',
         cnp: 'Construction noise permits issued under the Noise Control Ordinance, covering permit type, permit number, issue date, validity, permittee and site location.',
         lnrs: 'Data showing the location of low noise road surface when producing noise maps.',
         l10_2020: 'L10 (1 hour) noise level at 4m height during the busiest traffic hour in the 2020 noise map.',
@@ -829,6 +829,7 @@ body.has-subtabs .sub-caret { display: block; }
         facilityType: 'Facility Type',
         openHours: 'Opening Hours',
         district: 'District',
+        waterZone: 'Water Control Zone',
         /* Field labels and units follow the official EPD CSV headers verbatim */
         stationCode: 'Station Code',
         samplingDate: 'Sampling Date',
@@ -891,7 +892,6 @@ body.has-subtabs .sub-caret { display: block; }
         errorHint: 'Load failed',
         noSamplingDate: 'Not provided by the official dataset',
         noSamplingNote: 'Note: the EPD Beach Water Quality Grading dataset publishes only the latest grade; no per-beach sampling date is provided.',
-        districtNote: 'Note: the beach dataset has no "District" field; each beach\u2019s district is mapped from the official EPD beach list.',
         waterParamNote: 'Note: the dataset publishes measured DO and BOD5 values only. There is no official grading, so no colour grading is applied. A value shown as "<" is below the detection limit.',
         cnpNote: 'Status is derived by comparing the official validity period with today\u2019s date. It is not a field of the dataset and is for reference only.',
         permitActive: 'In force',
@@ -1592,6 +1592,27 @@ body.has-subtabs .sub-caret { display: block; }
   function waterLink(p) {
     return state.lang === 'tc' ? (p.D_Link_C || p.D_Link_Eng) : (p.D_Link_Eng || p.D_Link_C);
   }
+  /* 水質管制區（官方 10 區）。數據集只有測站名稱（例如 "TM3-Harbour Subzone"），
+     並無管制區欄位；下表取自環保署「近期的海水水質資料」頁的
+     「管制區（測站代號）」對照，代號就是數據集的 A_Station。
+     數據集剛好每區一個測站，故這就是官方的分組方式。 */
+  const MARINE_ZONE = {
+    VM5:  { en: 'Victoria Harbour',         tc: '維多利亞港' },
+    DM3:  { en: 'Deep Bay',                 tc: '后海灣' },
+    EM2:  { en: 'Eastern Buffer',           tc: '東部緩衝區' },
+    JM4:  { en: 'Junk Bay',                 tc: '將軍澳' },
+    MM15: { en: 'Mirs Bay',                 tc: '大鵬灣' },
+    NM3:  { en: 'North Western',            tc: '西北部' },
+    PM7:  { en: 'Port Shelter',             tc: '牛尾海' },
+    SM6:  { en: 'Southern',                 tc: '南區' },
+    TM3:  { en: 'Tolo Harbour and Channel', tc: '吐露港及赤門' },
+    WM2:  { en: 'Western Buffer',           tc: '西部緩衝區' }
+  };
+  /* 測站 → 官方水質管制區名稱；未知代號回傳 null，不亂猜 */
+  function marineZone(p) {
+    const z = MARINE_ZONE[String(p.A_Station || '').trim().toUpperCase()];
+    return z ? (state.lang === 'tc' ? z.tc : z.en) : null;
+  }
 
   /* ---- 已簽發的建築噪音許可證 ----
      許可證類別以官方英文值作鍵（穩定），中文標籤用官方中文值。
@@ -2004,6 +2025,12 @@ body.has-subtabs .sub-caret { display: block; }
     const doVal = waterValue(p, 'do');
     const bodVal = waterValue(p, 'bod');
     let rows = '';
+    /* 官方分組：海水＝水質管制區（見 MARINE_ZONE）；河溪的官方分組就是河溪本身，
+       已顯示在彈窗標題，故不重複列一行。 */
+    if (kind === 'marine') {
+      const zone = marineZone(p);
+      if (zone) rows += row(t('popup.waterZone'), esc(zone));
+    }
     if (p.A_Station) rows += row(t('popup.stationCode'), esc(String(p.A_Station).trim()));
     if (p.B_Sampling_Date) rows += row(t('popup.samplingDate'), esc(String(p.B_Sampling_Date).trim()));
     /* 標籤已含官方單位（毫克/升），故只顯示原值 */
@@ -2653,8 +2680,7 @@ body.has-subtabs .sub-caret { display: block; }
         { type: 'dot', color: BEACH_COLOR[4], label: `${t('legend.veryPoor')} (Grade 4)` },
         { type: 'dot', color: BEACH_CLOSED_COLOR, label: t('legend.notOpen') }
       ],
-      note: t('datasetDescriptions.beachGrading') + '<br><br>' + t('ui.noSamplingNote') +
-        '<br><br>' + t('ui.districtNote')
+      note: t('datasetDescriptions.beachGrading') + '<br><br>' + t('ui.noSamplingNote')
     }),
     marine: () => ({
       title: t('datasetNames.marineWater'),

@@ -800,6 +800,50 @@ try {
   await cdp.send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   await sleep(400);
 
+  /* ---------- water quality: grouped by the official unit ----------
+     EPD publishes the three water datasets grouped by an official unit: beaches by
+     district, marine stations by Water Control Zone (10), river stations by inland
+     watercourse (13). Beaches already carry a district row and a river station's
+     name IS its watercourse, so the one missing label was the marine zone — the
+     dataset only has "TM3-Harbour Subzone", never the zone itself. The beach
+     legend's district-mapping note was removed at the same time. */
+  const wq = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    const dump = (lid) => {
+      const out = [];
+      h.layers[lid].eachLayer((l) => {
+        if (!l.feature) return;
+        const p = l.feature.properties;
+        const c = l.getPopup().getContent();
+        const node = L.DomUtil.create('div');
+        node.innerHTML = (typeof c === 'function') ? c(l) : String(c);
+        const rows = [...node.querySelectorAll('.cp-row')].map((r) => ({
+          label: r.querySelector('.cp-label').textContent.trim(),
+          value: r.querySelector('.cp-value').textContent.trim()
+        }));
+        out.push({ code: String(p.A_Station || '').trim(), rows });
+      });
+      return out;
+    };
+    await h.activate('marine');
+    await new Promise((r) => setTimeout(r, 2500));
+    const marine = dump('marine');
+    await h.activate('beach');
+    await new Promise((r) => setTimeout(r, 2500));
+    const legend = document.querySelector('.legend-body') ? document.querySelector('.legend-body').textContent : '';
+    return { marine, legend };
+  })()`, true);
+  const zoneOf = (s) => {
+    const r = s.rows.find((x) => /水質管制區|Water Control Zone/.test(x.label));
+    return r ? r.value : null;
+  };
+  check('every marine station is labelled with its official Water Control Zone',
+    !!wq && wq.marine.length === 10 && wq.marine.every((s) => !!zoneOf(s)),
+    wq ? `${wq.marine.filter(zoneOf).length}/${wq.marine.length} mapped, e.g. ${wq.marine[0].code} -> ${zoneOf(wq.marine[0]) || '?'}` : '?');
+  check('the beach legend no longer carries the district-mapping note',
+    !!wq && !/並無「地區」欄位|no "District" field/.test(wq.legend || ''),
+    wq ? 'note removed' : '?');
+
   /* ---------- no uncaught page exceptions ---------- */
   check('no uncaught page exceptions', pageErrors.length === 0,
     pageErrors.slice(0, 3).join(' ;; ') || 'none');
