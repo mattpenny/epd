@@ -2346,23 +2346,43 @@ body.has-subtabs .sub-caret { display: block; }
     return rec && Array.isArray(rec.series) && rec.series.length ? rec.series : null;
   }
   /* 與泳灘卡同一種長條圖，但只用單色 —— 官方沒有為溶解氧／生化需氧量訂等級，
-     故不自行分級上色（與其他圖層一致的做法）。which: 1 = 溶解氧、2 = 生化需氧量 */
-  function wqChart(series, which, color, label) {
+     故不自行分級上色（與其他圖層一致的做法）。which: 1 = 溶解氧、2 = 生化需氧量
+     版面：左邊留位放 Y 軸刻度與單位，下面留位放日期；viewBox + width:100%，
+     令圖表隨彈窗寬度一起放大，看得更清楚。 */
+  function wqChart(series, which, color, label, unit) {
     const nums = series.map((s) => { const v = parseFloat(s[which]); return isFinite(v) ? v : 0; });
     const max = Math.max.apply(null, nums.concat([0.0001]));
-    const W = 268, H = 64;
-    const gap = series.length > 60 ? 1 : 2;
-    const bw = Math.max(1.5, (W - gap * (series.length - 1)) / series.length);
+    const W = 260, H = 120;
+    const x0 = 32, x1 = 258, y0 = 20, y1 = 98;
+    const plotW = x1 - x0, plotH = y1 - y0;
+    /* 360 個採樣也要全部塞進同一個寬度：點數多時不留間隙，且不設下限
+       （先前用 max(1.2, …) 會令長條總寬超出繪圖區，後半被裁掉）。 */
+    const gap = series.length > 120 ? 0 : (series.length > 60 ? 1 : 2);
+    const bw = Math.max(0.35, (plotW - gap * (series.length - 1)) / series.length);
     const bars = series.map((s, i) => {
-      const h = Math.max(1, Math.round((nums[i] / max) * (H - 6)));
-      return `<rect x="${(i * (bw + gap)).toFixed(1)}" y="${(H - h).toFixed(1)}" ` +
-        `width="${bw.toFixed(1)}" height="${h}" fill="${color}"></rect>`;
+      const h = Math.max(1, Math.round((nums[i] / max) * plotH));
+      return `<rect x="${(x0 + i * (bw + gap)).toFixed(2)}" y="${(y1 - h).toFixed(1)}" ` +
+        `width="${bw.toFixed(2)}" height="${h}" fill="${color}"></rect>`;
+    }).join('');
+    /* Y 軸：0 / 一半 / 最大，附淡格線與數值標籤 */
+    const nice = (v) => (v >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
+    const yAxis = [0, max / 2, max].map((tv) => {
+      const y = y1 - (tv / max) * plotH;
+      return `<line x1="${x0}" y1="${y.toFixed(1)}" x2="${x1}" y2="${y.toFixed(1)}" ` +
+        `stroke="currentColor" stroke-opacity="0.14" stroke-width="1"></line>` +
+        `<text x="${x0 - 4}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="10" ` +
+        `fill="currentColor" fill-opacity="0.7">${esc(nice(tv))}</text>`;
     }).join('');
     const oldest = series[0][0] || '', newest = series[series.length - 1][0] || '';
     return `<div class="hb-chart">
-      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
-           aria-label="${esc(label)}">${bars}</svg>
-      <div class="hb-axis"><span>${esc(oldest)}</span><span></span><span>${esc(newest)}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}">
+        <text x="1" y="12" font-size="10" fill="currentColor" fill-opacity="0.7">${esc(unit || '')}</text>
+        ${yAxis}
+        ${bars}
+        <line x1="${x0}" y1="${y1}" x2="${x1}" y2="${y1}" stroke="currentColor" stroke-opacity="0.4" stroke-width="1"></line>
+        <text x="${x0}" y="${y1 + 15}" font-size="10" fill="currentColor" fill-opacity="0.7">${esc(oldest)}</text>
+        <text x="${x1}" y="${y1 + 15}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.7">${esc(newest)}</text>
+      </svg>
     </div>`;
   }
   /* 最新值／期間平均（自行計算，會標明） */
@@ -2384,16 +2404,18 @@ body.has-subtabs .sub-caret { display: block; }
     }
     const doS = wqStats(series, 1), bodS = wqStats(series, 2);
     const fmt = (v) => (v == null || v === '' ? '—' : String(v));
-    let rows = rowStack(t('popup.histTrendWq'), wqChart(series, 1, color, t('popup.histTrendWq')));
-    rows += rowStack(t('popup.histTrendBod'), wqChart(series, 2, color, t('popup.histTrendBod')));
+    const UNIT = 'mg/L';
+    let rows = rowStack(t('popup.histTrendWq'), wqChart(series, 1, color, t('popup.histTrendWq'), UNIT));
+    rows += rowStack(t('popup.histTrendBod'), wqChart(series, 2, color, t('popup.histTrendBod'), UNIT));
     rows += row(t('popup.samplingDate'), esc(String(series[series.length - 1][0] || '—')));
     rows += row(t('popup.histSamples'), esc(String(series.length)));
+    /* 標籤一行、數值一行：值含「最新值 + 期間平均」，同排會擠成多行 */
     if (doS.avg != null) {
-      rows += row(t('popup.dissolvedOxygen'),
+      rows += rowStack(t('popup.dissolvedOxygen'),
         `${esc(fmt(doS.latest))} <span class="cp-sub">${esc(t('popup.histAvg'))} ${esc(String(doS.avg))}</span>`);
     }
     if (bodS.avg != null) {
-      rows += row(t('popup.bod5'),
+      rows += rowStack(t('popup.bod5'),
         `${esc(fmt(bodS.latest))} <span class="cp-sub">${esc(t('popup.histAvg'))} ${esc(String(bodS.avg))}</span>`);
     }
     return rows;
