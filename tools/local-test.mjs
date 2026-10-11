@@ -642,7 +642,7 @@ try {
     const h = window.__hkEnvMap;
     await h.activate('cnp');
     await new Promise((r) => setTimeout(r, 1500));
-    let html = null, permitNo = null;
+    let html = null, permitNo = null, title = null;
     h.layers.cnp.eachLayer((l) => {
       if (html || !l.feature) return;
       const p = l.feature.properties || {};
@@ -650,9 +650,11 @@ try {
       const c = l.getPopup().getContent();
       const node = L.DomUtil.create('div');
       node.innerHTML = (typeof c === 'function') ? c(l) : String(c);
+      const h3 = node.querySelector('.cp-title');
+      title = h3 ? h3.textContent.trim() : '';
       html = node.innerHTML;
     });
-    return { html, permitNo, lang: h.state.lang };
+    return { html, permitNo, title, lang: h.state.lang };
   })()`, true);
   check('CNP popup links to the official EPD permit search page',
     !!cnp && /href="https:\/\/epic\.epd\.gov\.hk\/EFORMUPD\/main\/epic\/apps-construct\?lang=en"/.test(cnp.html || ''),
@@ -666,8 +668,15 @@ try {
   check('CNP popup never references the broken per-permit URL or the EPICDI page',
     !!cnp && !/execution=/.test(cnp.html || '') && !/EPICDI/.test(cnp.html || ''),
     'clean');
-  check('CNP popup shows the permit number as the title',
-    !!cnp && !!cnp.permitNo && (cnp.html || '').includes(cnp.permitNo),
+  /* 標題改為「這是什麼」，不再放編號 —— 編號本身就在下方的「許可證編號」列，
+     放在標題只會重複一次。 */
+  check('CNP popup titles the card "Construction Noise Permit", not the permit number',
+    !!cnp && /Construction Noise Permit|建築噪音許可證/.test(cnp.title || '') &&
+      !(cnp.title || '').includes(cnp.permitNo || '\u0000'),
+    `title="${cnp && cnp.title}" PERMIT_NO=${cnp && cnp.permitNo}`);
+  check('the permit number is still shown, as the "Permit No." row',
+    !!cnp && !!cnp.permitNo && /<span class="cp-permit-no">/.test(cnp.html || '') &&
+      (cnp.html || '').includes(cnp.permitNo),
     `PERMIT_NO=${cnp && cnp.permitNo}`);
   check('CNP permit number is plain text, not a copy control',
     !!cnp && /<span class="cp-permit-no">[^<]+<\/span>/.test(cnp.html || '') &&

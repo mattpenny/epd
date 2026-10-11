@@ -717,6 +717,8 @@ body.has-subtabs .sub-caret { display: block; }
         samplingDate: '樣本日期',
         dissolvedOxygen: '溶解氧 (毫克/升)',
         bod5: '五天生化需氧量 (毫克/升)',
+        /* 許可證彈窗的標題：編號本身已在下方的「許可證編號」列，標題只需說明這是什麼 */
+        cnpTitle: '建築噪音許可證',
         permitType: '許可證類別',
         permitNo: '許可證編號',
         issueOn: '簽發日期',
@@ -893,6 +895,9 @@ body.has-subtabs .sub-caret { display: block; }
         samplingDate: 'Sampling Date',
         dissolvedOxygen: 'Dissolved Oxygen (mg/L)',
         bod5: '5-day Biochemical Oxygen Demand (mg/L)',
+        /* Popup header: the number itself is already the "Permit No." row below,
+           so the title only has to say what the card is. */
+        cnpTitle: 'Construction Noise Permit',
         permitType: 'Permit Type',
         permitNo: 'Permit No.',
         issueOn: 'Issue Date',
@@ -2243,7 +2248,7 @@ body.has-subtabs .sub-caret { display: block; }
           該圖層 hasAttachments=false，沒有許可證文件。 */
     const search = `<a href="${CNP_SEARCH_URL}" target="_blank" rel="noopener">` +
       `${esc(t('ui.cnpSearchLink'))}</a>`;
-    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), rows, search);
+    return popupShell(t('popup.cnpTitle'), rows, search);
   }
 
   /* ---- 公眾可使用的電動車充電器 Popup ---- */
