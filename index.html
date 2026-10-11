@@ -263,9 +263,9 @@ body.has-subtabs .sub-caret { display: block; }
 }
 .leaflet-popup-tip { background: var(--popup-bg); border: 1px solid var(--border-color); }
 .leaflet-popup-content { margin: 0; }
-/* 關閉按鈕：原本只是一個光禿禿的 ×，壓在說明文字（.cp-desc）上時幾乎看不見。
+/* 關閉按鈕：原本只是一個光禿禿的 ×，壓在卡片說明文字上時幾乎看不見。
    改成有底襯的圓形按鈕、往內縮一點，並用 flex 置中（原本靠 padding-top 手推）。
-   .cp-desc 與 .cp-title 都保留右側內距，文字不會跑到按鈕底下。 */
+   .cp-title 保留右側內距，標題不會跑到按鈕底下。 */
 .leaflet-container a.leaflet-popup-close-button {
   color: var(--text-secondary); font-size: 20px; width: 28px; height: 28px;
   line-height: 1; z-index: 3; text-decoration: none;
@@ -403,14 +403,6 @@ body.has-subtabs .sub-caret { display: block; }
   margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border-color);
   color: var(--text-secondary); font-size: calc(10.5px * var(--fs)); line-height: 1.5;
 }
-.custom-popup .cp-desc {
-  color: var(--text-secondary); font-size: calc(11px * var(--fs)); line-height: 1.5;
-  margin: 0 0 8px; font-style: italic;
-  /* 右上角是關閉按鈕 —— 預留右側內距，說明文字才不會被 × 蓋住 */
-  padding: 12px 40px 0 13px;
-}
-.custom-popup .cp-desc + .cp-title { border-top: 0; }
-
 /* MarkerCluster 主題化 */
 .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
   background-color: color-mix(in srgb, var(--tab-active) 28%, transparent);
@@ -573,7 +565,6 @@ body.has-subtabs .sub-caret { display: block; }
     font-size: calc(12px * var(--fs));
   }
   .custom-popup .cp-title { font-size: calc(15px * var(--fs)); padding-right: 46px; }
-  .custom-popup .cp-desc { padding-right: 46px; }
   .custom-popup .cp-label { min-width: 72px; font-size: calc(11.5px * var(--fs)); }
   .leaflet-container a.leaflet-popup-close-button {
     font-size: 24px; width: 36px; height: 36px;
@@ -1972,9 +1963,11 @@ body.has-subtabs .sub-caret { display: block; }
   /* ======================================================================
      9. Popup 內容
      ====================================================================== */
-  function popupShell(title, descHtml, rowsHtml, footExtra) {
+  /* 卡片一律由標題開始 —— 原本標題上方還有一段斜體的資料集說明
+     （datasetDescriptions.*），已全部移除；那些字串仍保留在圖例中。
+     因此 popupShell 不再有 descHtml 參數，相關的 .cp-desc 樣式亦已刪除。 */
+  function popupShell(title, rowsHtml, footExtra) {
     return `<div class="custom-popup">
-      ${descHtml || ''}
       <h3 class="cp-title">${esc(title)}</h3>
       <div class="cp-body">
         ${rowsHtml}
@@ -2013,8 +2006,7 @@ body.has-subtabs .sub-caret { display: block; }
         rowStack(t('popup.lastUpdate'), esc(String(aqhi.publish_date).replace('T', ' ').slice(0, 16)));
     }
     rows += row(t('ui.dataFetched'), esc(state.meta.air || fmtDateTime(new Date())));
-    // 原本這裡有一行 datasetDescriptions.airNetwork 的說明；按需求移除，卡片直接由標題開始。
-    return popupShell(name || '—', '', rows);
+    return popupShell(name || '—', rows);
   }
 
   /* ---- 泳灘 Popup ---- */
@@ -2059,8 +2051,7 @@ body.has-subtabs .sub-caret { display: block; }
     const link = p.link_beach
       ? `<a href="${esc(p.link_beach)}" target="_blank" rel="noopener">EPD 泳灘水質報告</a>`
       : '';
-    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.beachGrading'))}</p>`;
-    return popupShell(name || '—', desc, rows, link);
+    return popupShell(name || '—', rows, link);
   }
 
   /* 泳灘彈窗內的檢視切換（事件委派）。
@@ -2205,8 +2196,7 @@ body.has-subtabs .sub-caret { display: block; }
     const linkHtml = link
       ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(t('datasetNames.' + DATA[kind].datasetKey))}</a>`
       : '';
-    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.' + DATA[kind].datasetKey))}</p>`;
-    return popupShell(name || '—', desc, rows, linkHtml);
+    return popupShell(name || '—', rows, linkHtml);
   }
 
   /* ---- 已簽發的建築噪音許可證 Popup ---- */
@@ -2251,10 +2241,9 @@ body.has-subtabs .sub-caret { display: block; }
           沒有「許可證編號」欄位 —— 無法用編號直達，也不能以網址預填。
        3. CSDI／data.gov.hk 的 API 只提供 WFS／WMS／ArcGIS REST（本圖層已在用），
           該圖層 hasAttachments=false，沒有許可證文件。 */
-    // 原本這裡有一行 datasetDescriptions.cnp 的說明；按需求移除，卡片直接由許可證編號開始。
     const search = `<a href="${CNP_SEARCH_URL}" target="_blank" rel="noopener">` +
       `${esc(t('ui.cnpSearchLink'))}</a>`;
-    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), '', rows, search);
+    return popupShell(String(p.PERMIT_NO || '').trim() || t('datasetNames.cnp'), rows, search);
   }
 
   /* ---- 公眾可使用的電動車充電器 Popup ---- */
@@ -2301,7 +2290,7 @@ body.has-subtabs .sub-caret { display: block; }
     }
     /* 資料擷取時間同樣上下堆疊（時間字串比標籤長，放大字體後尤甚） */
     rows += rowStack(t('ui.dataFetched'), esc(state.meta.ev || fmtDateTime(new Date())));
-    return popupShell(loc || t('datasetNames.evChargers'), '', rows,
+    return popupShell(loc || t('datasetNames.evChargers'), rows,
       esc(t('ui.evNote')));
   }
 
@@ -2560,8 +2549,7 @@ body.has-subtabs .sub-caret { display: block; }
     if (report) rows += row(t('popup.eiaReport'), esc(report));
     if (district) rows += row(t('popup.district'), esc(district));
     rows += row(t('ui.dataFetched'), esc(state.meta.habitat || fmtDateTime(new Date())));
-    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.habitat'))}</p>`;
-    return popupShell(label || proj || t('datasetNames.habitat'), desc, rows);
+    return popupShell(label || proj || t('datasetNames.habitat'), rows);
   }
 
   /* ---- 回收點 Popup ---- */
@@ -2574,8 +2562,7 @@ body.has-subtabs .sub-caret { display: block; }
     if (p.waste_type) rows += row(t('popup.recycleType'), esc(p.waste_type));
     if (p.district_id) rows += row(t('popup.district'), esc(String(p.district_id).replace(/_/g, ' ')));
     rows += row(t('ui.dataFetched'), esc(state.meta.recycle || fmtDateTime(new Date())));
-    const desc = `<p class="cp-desc">${esc(t('datasetNames.recyclePoints'))} · ${esc(t('ui.officialName'))}</p>`;
-    return popupShell(addr || t('datasetNames.recyclePoints'), desc, rows);
+    return popupShell(addr || t('datasetNames.recyclePoints'), rows);
   }
 
   /* ---- 低噪音路面 Popup ---- */
@@ -2585,8 +2572,7 @@ body.has-subtabs .sub-caret { display: block; }
     if (p.materials) rows += row(t('popup.surfaceType'), esc(MATERIAL_LABEL[p.materials] || p.materials));
     if (p.SHAPE_Length != null) rows += row('SHAPE_Length', esc(Number(p.SHAPE_Length).toFixed(1)));
     rows += row(t('ui.dataFetched'), esc(state.meta.lnrs || fmtDateTime(new Date())));
-    const desc = `<p class="cp-desc">${esc(t('datasetDescriptions.lnrs'))}</p>`;
-    return popupShell(t('datasetNames.lnrs'), desc, rows);
+    return popupShell(t('datasetNames.lnrs'), rows);
   }
 
   /* ======================================================================

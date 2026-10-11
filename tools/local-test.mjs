@@ -1178,14 +1178,16 @@ try {
     /* 關閉按鈕：是否真的看得見（有底色／圓形），以及文字是否預留了右側空間 */
     const x = document.querySelector('.leaflet-popup-close-button');
     const title = pop.querySelector('.cp-title');
-    const desc = pop.querySelector('.cp-desc');
     out.closeBtn = {
       present: !!x,
       bg: x ? getComputedStyle(x).backgroundColor : null,
       radius: x ? getComputedStyle(x).borderRadius : null,
       w: x ? Math.round(x.getBoundingClientRect().width) : 0,
       titlePadRight: title ? getComputedStyle(title).paddingRight : null,
-      descPadRight: desc ? getComputedStyle(desc).paddingRight : null
+      /* 關閉按鈕與標題是否重疊（標題現在是卡片第一個元素） */
+      overlap: (x && title)
+        ? Math.round(title.getBoundingClientRect().right - x.getBoundingClientRect().left)
+        : null
     };
     /* 點圖表 → 放大 */
     const chart = pop.querySelector('.hb-chart[data-chart-title]');
@@ -1221,13 +1223,80 @@ try {
   check('the enlarged chart closes on Escape',
     !!uix && uix.closedByEsc === true,
     uix ? 'closedByEsc=' + uix.closedByEsc : '?');
-  check('the close button is a visible badge and the text reserves room for it',
+  check('the close button is a visible badge and the title reserves room for it',
     !!uix && uix.closeBtn && uix.closeBtn.present &&
       parseFloat(uix.closeBtn.titlePadRight) >= 34 &&
-      parseFloat(uix.closeBtn.descPadRight) >= 34 &&
       uix.closeBtn.bg !== 'rgba(0, 0, 0, 0)' && /50%/.test(uix.closeBtn.radius),
     uix && uix.closeBtn ? `bg=${uix.closeBtn.bg} radius=${uix.closeBtn.radius} w=${uix.closeBtn.w} ` +
-      `padRight title=${uix.closeBtn.titlePadRight} desc=${uix.closeBtn.descPadRight}` : '?');
+      `padRight title=${uix.closeBtn.titlePadRight}` : '?');
+
+  /* ---------- no popup anywhere still renders a dataset description ----------
+     Every card used to open with an italic `datasetDescriptions.*` blurb above the
+     title. They are all gone now, so the first element of every card must be the
+     title. This sweeps whatever layer groups are still populated at the end of the
+     run rather than hard-coding a list. */
+  const descSweep = await evalJs(`(async () => {
+    const h = window.__hkEnvMap;
+    const out = { groups: [], withDesc: [], firstEl: {}, cards: 0, notes: [], err: null };
+    try {
+      /* 先把兩個尚未在此時點載入的圖層叫起來（生境圖與噪音圖層），
+         否則它們的 popup 不會被掃到——而它們同樣改過。
+         這兩次 activate 各自包 try/catch：任何一邊失敗都不該讓整個掃描作廢。 */
+      for (const id of ['habitat', 'noise']) {
+        try {
+          await h.activate(id);
+          await new Promise((r) => setTimeout(r, 3000));
+        } catch (e) {
+          out.notes.push(id + ' activate failed: ' + ((e && e.message) || e));
+        }
+      }
+      Object.keys(h.layers || {}).forEach((k) => {
+        const g = h.layers[k];
+        if (!g) return;
+        let n = 0;
+        /* 生境圖的圖層是「圖層組包圖層組」——只走一層會全部跳過，
+           所以遞迴下去找真正綁了 popup 的圖徵。 */
+        const visit = (layer, depth) => {
+          if (!layer || n >= 3 || depth > 4) return;
+          let popup = null;
+          try { popup = layer.getPopup && layer.getPopup(); } catch (e) { popup = null; }
+          if (!popup) {
+            if (layer.eachLayer) layer.eachLayer((c) => visit(c, depth + 1));
+            return;
+          }
+          let node = null;
+          try {
+            const c = popup.getContent();
+            node = L.DomUtil.create('div');
+            node.innerHTML = (typeof c === 'function') ? c(layer) : String(c);
+          } catch (e) { node = null; }
+          const card = node && node.querySelector('.custom-popup');
+          if (!card) return;
+          n++; out.cards++;
+          if (node.querySelector('.cp-desc')) out.withDesc.push(k);
+          const first = card.firstElementChild;
+          out.firstEl[k] = first ? String(first.className) : 'none';
+        };
+        visit(g, 0);
+        if (n) out.groups.push(k + ':' + n);
+      });
+    } catch (e) {
+      out.err = String((e && e.stack) || (e && e.message) || e);
+    }
+    return out;
+  })()`, true);   /* ← 必須 awaitPromise：這是一個 async IIFE */
+  const sweepDetail = !descSweep ? '?'
+    : `cards=${descSweep.cards} groups=${(descSweep.groups || []).join(',')}` +
+      ` withDesc=${(descSweep.withDesc || []).join(',') || 'none'}` +
+      (descSweep.notes && descSweep.notes.length ? ` notes=[${descSweep.notes.join(' | ')}]` : '') +
+      (descSweep.err ? ` ERR=${descSweep.err.slice(0, 200)}` : '');
+  check('no popup on any layer renders a dataset description',
+    !!descSweep && !descSweep.err && descSweep.cards > 0 && descSweep.withDesc.length === 0,
+    sweepDetail);
+  check('every card starts with its title, not a description paragraph',
+    !!descSweep && !descSweep.err && descSweep.cards > 0 &&
+      Object.keys(descSweep.firstEl).every((k) => /cp-title/.test(descSweep.firstEl[k])),
+    !descSweep ? '?' : Object.keys(descSweep.firstEl).map((k) => `${k}=${descSweep.firstEl[k]}`).join(' '));
 
   /* ---------- no uncaught page exceptions ---------- */
   check('no uncaught page exceptions', pageErrors.length === 0,
