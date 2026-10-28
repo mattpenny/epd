@@ -459,28 +459,6 @@ body.has-subtabs .sub-caret { display: block; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.success { background: #137333; }
 
-/* 數據狀態列（頂欄下方右上角）：最後更新時間 + 重新整理掣 */
-.data-status {
-  position: absolute; right: 12px; top: calc(var(--header-h) + 12px); z-index: 1150;
-  display: none; align-items: center; gap: 8px;
-  padding: 7px 8px 7px 12px; border-radius: 999px;
-  background: var(--popup-bg); color: var(--popup-text);
-  border: 1px solid var(--border-color); box-shadow: var(--shadow);
-  font-size: calc(11.5px * var(--fs)); font-weight: 600;
-}
-.data-status.show { display: flex; }
-.data-status.is-stale { border-color: #e6a700; color: #9a6a00; }
-.data-status button {
-  border: 0; border-radius: 999px; cursor: pointer;
-  width: 26px; height: 26px; line-height: 1; font-size: 15px;
-  background: var(--tab-active); color: #fff; font-family: inherit;
-}
-.data-status button:disabled { opacity: .55; cursor: default; }
-/* 桌面版：「加到主畫面」提示出現時與狀態列同位，狀態列讓開一格 */
-@media (min-width: 768px) {
-  body:has(.a2hs.show) .data-status { top: calc(var(--header-h) + 64px); }
-}
-
 /* 新版本提示（置頂置中，按下才重載，不打斷正在看地圖的使用者） */
 .update-banner {
   position: absolute; left: 50%; top: calc(var(--header-h) + 64px);
@@ -660,11 +638,6 @@ body.has-subtabs .sub-caret { display: block; }
 </div>
 
 <div id="toast" class="toast" role="alert"></div>
-
-<div id="data-status" class="data-status" role="status">
-  <span id="data-status-text"></span>
-  <button id="refresh-btn" type="button" aria-label="重新整理">↻</button>
-</div>
 
 <button id="update-banner" class="update-banner" type="button">
   <span id="update-banner-text">有新版本可用，點此更新</span>
@@ -3475,7 +3448,6 @@ body.has-subtabs .sub-caret { display: block; }
       }
     }
     renderLegend();
-    updateDataStatus();
     if (isMobile() && !legendTouched) setLegendCollapsed(true);
   }
 
@@ -3500,37 +3472,21 @@ body.has-subtabs .sub-caret { display: block; }
      現在：
        - 空氣（AQHI）每 10 分鐘、充電可用情況快照每 15 分鐘，在分頁
          可見時自動重抓；其餘圖層的官方數據變動慢（每日或更慢）兼
-         體積大（生境約 8MB、回收約 2.9MB），不在背景硬抓，改為顯示
-         最後更新時間 + 過期提示，並提供手動重新整理掣。
-       - 左下角狀態列顯示目前圖層的最後更新時間，超齡時標示「可能
-         已過期」；重抓失敗時保留現有圖層，不會把地圖變空白。
+         體積大（生境約 8MB、回收約 2.9MB），不在背景硬抓。
+       - 自動重抓在背景靜默進行，不設狀態列／手動掣（2026-10-29
+         按使用者要求移除該 UI，它在不同版面屢次遮擋其他元素）；
+         每個彈窗內的「資料擷取時間」仍可查閱數據新舊。重抓失敗時
+         保留現有圖層，不會把地圖變空白。
        - App 版本：定時比對同源 version.json（no-store，Service
          Worker 不得快取），版本不同才顯示「有新版本可用」橫額，
          由使用者按下才重載，不會在看地圖途中強行刷新。
      ====================================================================== */
   const APP_VERSION = '2026.10.28-2';
   const AUTO_REFRESH_MS = { air: 10 * 60 * 1000, ev: 15 * 60 * 1000 };
-  const STALE_MS = { air: 90 * 60 * 1000, ev: 45 * 60 * 1000 };
-  const DEFAULT_STALE_MS = 25 * 60 * 60 * 1000;
   /* 圖層 id → DATA 設定鍵（noise 分頁的數據鍵是 lnrs；air 另連帶 AQHI） */
   const LAYER_DATA_KEYS = { air: ['air', 'aqhi'], noise: ['lnrs'] };
   let appUpdateShown = false;
   let bootVersion = null;   // 本次載入時 version.json 的版本；其後有變即代表已發佈新版
-
-  function updateDataStatus() {
-    const el = $('#data-status');
-    const txt = $('#data-status-text');
-    if (!el || !txt) return;
-    const lid = activeLayerId();
-    const ts = state.fetchedAt[lid];
-    if (!ts) { el.classList.remove('show'); return; }
-    const staleAfter = STALE_MS[lid] || DEFAULT_STALE_MS;
-    const stale = Date.now() - ts > staleAfter;
-    txt.textContent = `${t('ui.lastUpdated')} ${fmtDateTime(new Date(ts))}` +
-      (stale ? ` · ${t('ui.stale')}` : '');
-    el.classList.toggle('is-stale', stale);
-    el.classList.add('show');
-  }
 
   /* 令某圖層失效：清走它的 localStorage 快取與地圖上的圖層物件，
      下次（或即刻，若它正是目前圖層）重新抓取。 */
@@ -3557,7 +3513,7 @@ body.has-subtabs .sub-caret { display: block; }
 
   /* 充電圖層的時效部分只有可用情況快照（data/ev-availability.json，
      由 GitHub Actions 每 15 分鐘更新）；靜態充電器位置體積大且很少變，
-     故自動／手動更新只重抓快照，不重抓整個圖層。fetchJson 經 Service
+     故自動更新只重抓快照，不重抓整個圖層。fetchJson 經 Service
      Worker 時該檔已改為 network-first（見 sw.js），不會被舊快取卡住。 */
   async function refreshEvAvailability() {
     evAvailPromise = null;
@@ -3567,34 +3523,13 @@ body.has-subtabs .sub-caret { display: block; }
     state.meta.ev = fmtDateTime(new Date());
   }
 
-  async function onRefreshClick() {
-    const lid = activeLayerId();
-    const btn = $('#refresh-btn');
-    if (btn) btn.disabled = true;
-    try {
-      if (lid === 'ev') {
-        await refreshEvAvailability();
-        toast(t('ui.refreshed'), 'success');
-      } else {
-        const ok = await refreshLayer(lid);
-        if (ok) toast(t('ui.refreshed'), 'success');
-        else toast(t('ui.refreshFailed'));
-      }
-    } catch (e) {
-      toast(t('ui.refreshFailed'));
-    } finally {
-      if (btn) btn.disabled = false;
-      updateDataStatus();
-    }
-  }
-
   async function autoRefreshTick() {
     if (document.hidden) return;               // 背景分頁不浪費請求
     const lid = activeLayerId();
     const interval = AUTO_REFRESH_MS[lid];
-    if (!interval) { updateDataStatus(); return; }
+    if (!interval) return;
     const ts = state.fetchedAt[lid] || 0;
-    if (Date.now() - ts < interval) { updateDataStatus(); return; }
+    if (Date.now() - ts < interval) return;
     try {
       if (lid === 'ev') await refreshEvAvailability();
       else await refreshLayer(lid);
@@ -3602,7 +3537,6 @@ body.has-subtabs .sub-caret { display: block; }
     } catch (e) {
       console.warn('[自動更新] 重抓失敗，保留現有資料：', e);
     }
-    updateDataStatus();
   }
 
   /* App 版本檢查：version.json 由 release-version workflow 在
@@ -3637,7 +3571,7 @@ body.has-subtabs .sub-caret { display: block; }
     setInterval(autoRefreshTick, 60 * 1000);
     setInterval(checkAppUpdate, 30 * 60 * 1000);
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) { autoRefreshTick(); checkAppUpdate(); updateDataStatus(); }
+      if (!document.hidden) { autoRefreshTick(); checkAppUpdate(); }
     });
   }
 
@@ -3754,14 +3688,8 @@ body.has-subtabs .sub-caret { display: block; }
     refreshTabLabels();
     const a2hsTxt = $('#a2hs-text');
     if (a2hsTxt) a2hsTxt.textContent = t('ui.a2hs');
-    const refreshBtn = $('#refresh-btn');
-    if (refreshBtn) {
-      refreshBtn.setAttribute('aria-label', t('ui.refresh'));
-      refreshBtn.title = t('ui.refresh');
-    }
     const ubTxt = $('#update-banner-text');
     if (ubTxt) ubTxt.textContent = t('ui.newVersion');
-    updateDataStatus();
 
     /* 字體大小按鈕的標籤／title 也要跟著語言走 */
     applyFontScale(state.fs, false);
@@ -3797,7 +3725,6 @@ body.has-subtabs .sub-caret { display: block; }
     $('#lang-btn').addEventListener('click', () => {
       applyLang(state.lang === 'tc' ? 'en' : 'tc', true);
     });
-    $('#refresh-btn').addEventListener('click', onRefreshClick);
     $('#update-banner').addEventListener('click', () => { location.reload(); });
     $('#fs-down').addEventListener('click', () => stepFontScale(-1));
     $('#fs-up').addEventListener('click', () => stepFontScale(1));
