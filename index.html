@@ -459,9 +459,9 @@ body.has-subtabs .sub-caret { display: block; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.success { background: #137333; }
 
-/* 數據狀態列（左下角）：最後更新時間 + 重新整理掣 */
+/* 數據狀態列（頂欄下方右上角）：最後更新時間 + 重新整理掣 */
 .data-status {
-  position: absolute; left: 12px; bottom: 12px; z-index: 1150;
+  position: absolute; right: 12px; top: calc(var(--header-h) + 12px); z-index: 1150;
   display: none; align-items: center; gap: 8px;
   padding: 7px 8px 7px 12px; border-radius: 999px;
   background: var(--popup-bg); color: var(--popup-text);
@@ -476,6 +476,10 @@ body.has-subtabs .sub-caret { display: block; }
   background: var(--tab-active); color: #fff; font-family: inherit;
 }
 .data-status button:disabled { opacity: .55; cursor: default; }
+/* 桌面版：「加到主畫面」提示出現時與狀態列同位，狀態列讓開一格 */
+@media (min-width: 768px) {
+  body:has(.a2hs.show) .data-status { top: calc(var(--header-h) + 64px); }
+}
 
 /* 新版本提示（置頂置中，按下才重載，不打斷正在看地圖的使用者） */
 .update-banner {
@@ -601,13 +605,6 @@ body.has-subtabs .sub-caret { display: block; }
     font-size: 24px; width: 36px; height: 36px;
   }
   .a2hs { top: auto; bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px); }
-  /* 手機：圖例在底部是全寬橫條，與狀態列原本的左下角位置同高，
-     兩者會互相遮擋（2026-10-28 使用者截圖實證）。改放左上角、
-     放大縮小掣之下：那處沒有其他固定 UI，不會再壓住任何卡片。 */
-  .data-status {
-    bottom: auto;
-    top: calc(var(--header-h) + 84px);
-  }
   .toast { bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 12px); }
 }
 @media (min-width: 768px) { .bottom-nav { display: none; } }
