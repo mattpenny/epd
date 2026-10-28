@@ -457,6 +457,7 @@ body.has-subtabs .sub-caret { display: block; }
   transition: opacity .25s, transform .25s;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.success { background: #137333; }
 
 /* 數據狀態列（左下角）：最後更新時間 + 重新整理掣 */
 .data-status {
@@ -1350,9 +1351,10 @@ body.has-subtabs .sub-caret { display: block; }
     };
   }
 
-  function toast(msg) {
+  function toast(msg, kind) {
     const el = $('#toast');
     el.textContent = msg;
+    el.classList.toggle('success', kind === 'success');
     el.classList.add('show');
     clearTimeout(toast._t);
     toast._t = setTimeout(() => el.classList.remove('show'), 5000);
@@ -3569,10 +3571,11 @@ body.has-subtabs .sub-caret { display: block; }
     try {
       if (lid === 'ev') {
         await refreshEvAvailability();
-        toast(t('ui.refreshed'));
+        toast(t('ui.refreshed'), 'success');
       } else {
         const ok = await refreshLayer(lid);
-        toast(ok ? t('ui.refreshed') : t('ui.refreshFailed'));
+        if (ok) toast(t('ui.refreshed'), 'success');
+        else toast(t('ui.refreshFailed'));
       }
     } catch (e) {
       toast(t('ui.refreshFailed'));
