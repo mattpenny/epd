@@ -601,7 +601,13 @@ body.has-subtabs .sub-caret { display: block; }
     font-size: 24px; width: 36px; height: 36px;
   }
   .a2hs { top: auto; bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px); }
-  .data-status { bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px); }
+  /* 手機：圖例在底部是全寬橫條，與狀態列原本的左下角位置同高，
+     兩者會互相遮擋（2026-10-28 使用者截圖實證）。改放左上角、
+     放大縮小掣之下：那處沒有其他固定 UI，不會再壓住任何卡片。 */
+  .data-status {
+    bottom: auto;
+    top: calc(var(--header-h) + 84px);
+  }
   .toast { bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 12px); }
 }
 @media (min-width: 768px) { .bottom-nav { display: none; } }
