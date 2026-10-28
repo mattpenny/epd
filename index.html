@@ -458,6 +458,36 @@ body.has-subtabs .sub-caret { display: block; }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* 數據狀態列（左下角）：最後更新時間 + 重新整理掣 */
+.data-status {
+  position: absolute; left: 12px; bottom: 12px; z-index: 1150;
+  display: none; align-items: center; gap: 8px;
+  padding: 7px 8px 7px 12px; border-radius: 999px;
+  background: var(--popup-bg); color: var(--popup-text);
+  border: 1px solid var(--border-color); box-shadow: var(--shadow);
+  font-size: calc(11.5px * var(--fs)); font-weight: 600;
+}
+.data-status.show { display: flex; }
+.data-status.is-stale { border-color: #e6a700; color: #9a6a00; }
+.data-status button {
+  border: 0; border-radius: 999px; cursor: pointer;
+  width: 26px; height: 26px; line-height: 1; font-size: 15px;
+  background: var(--tab-active); color: #fff; font-family: inherit;
+}
+.data-status button:disabled { opacity: .55; cursor: default; }
+
+/* 新版本提示（置頂置中，按下才重載，不打斷正在看地圖的使用者） */
+.update-banner {
+  position: absolute; left: 50%; top: calc(var(--header-h) + 64px);
+  transform: translateX(-50%); z-index: 1250;
+  display: none; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 999px; cursor: pointer;
+  background: var(--tab-active); color: #fff;
+  border: 1px solid var(--tab-active); box-shadow: var(--shadow-strong);
+  font-size: calc(12.5px * var(--fs)); font-family: inherit; font-weight: 700;
+}
+.update-banner.show { display: flex; }
+
 /* A2HS 提示 */
 .a2hs {
   position: absolute; right: 12px; top: calc(var(--header-h) + 12px); z-index: 1150;
@@ -570,6 +600,7 @@ body.has-subtabs .sub-caret { display: block; }
     font-size: 24px; width: 36px; height: 36px;
   }
   .a2hs { top: auto; bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px); }
+  .data-status { bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 10px); }
   .toast { bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 12px); }
 }
 @media (min-width: 768px) { .bottom-nav { display: none; } }
@@ -625,6 +656,15 @@ body.has-subtabs .sub-caret { display: block; }
 </div>
 
 <div id="toast" class="toast" role="alert"></div>
+
+<div id="data-status" class="data-status" role="status">
+  <span id="data-status-text"></span>
+  <button id="refresh-btn" type="button" aria-label="重新整理">↻</button>
+</div>
+
+<button id="update-banner" class="update-banner" type="button">
+  <span id="update-banner-text">有新版本可用，點此更新</span>
+</button>
 
 <button id="a2hs" class="a2hs" type="button">
   <span>📲 <span id="a2hs-text">加到主畫面</span></span>
@@ -786,6 +826,12 @@ body.has-subtabs .sub-caret { display: block; }
         subTabsLabel: '水質數據子分頁',
         tabsLabel: '數據圖層',
         dataFetched: '資料擷取時間',
+        lastUpdated: '最後更新',
+        refresh: '重新整理',
+        refreshed: '已更新至最新資料',
+        refreshFailed: '更新失敗，正在顯示上次資料',
+        stale: '可能已過期',
+        newVersion: '有新版本可用，點此更新',
         a2hs: '加到主畫面',
         recycleAll: '全部回收點',
         recycleGreen: '只顯示「綠在區區」回收網絡',
@@ -965,6 +1011,12 @@ body.has-subtabs .sub-caret { display: block; }
         subTabsLabel: 'Water quality sub-tabs',
         tabsLabel: 'Data layers',
         dataFetched: 'Data retrieved at',
+        lastUpdated: 'Last updated',
+        refresh: 'Refresh',
+        refreshed: 'Updated to the latest data',
+        refreshFailed: 'Update failed; showing the previous data',
+        stale: 'may be stale',
+        newVersion: 'A new version is available — tap to update',
         a2hs: 'Add to Home Screen',
         recycleAll: 'All collection points',
         recycleGreen: 'Show "Green Community" network only',
@@ -1239,6 +1291,7 @@ body.has-subtabs .sub-caret { display: block; }
     loaded: {},
     loading: {},
     meta: {},                 // 每個圖層的來源／更新時間
+    fetchedAt: {},            // 每個圖層最近一次成功載入的時間戳（自動更新／過期提示用）
     aqhi: null,
     popupLayer: null
   };
@@ -1321,6 +1374,9 @@ body.has-subtabs .sub-caret { display: block; }
         }
         return obj.data;
       } catch (e) { return null; }
+    },
+    remove(key) {
+      try { localStorage.removeItem('hk-env-cache:' + key); } catch (e) {}
     },
     set(key, data) {
       try {
@@ -1522,6 +1578,32 @@ body.has-subtabs .sub-caret { display: block; }
       .replace(/\s*Air Quality Monitoring Station\s*$/i, '')
       .trim();
   }
+
+  /* 空氣監測站欄位存取（新舊數據集架構並行支援）
+     2026 年實測：CSDI 的 AQMN 數據集已改用 NameEN／NameTC／AddressEN／
+     AddressTC／AqmsTypeEN／AqmsTypeTC，原本程式預期的 Facility_Name／
+     Address／Types_of_Air_Quality_Monitoring_Station 及中文字段名已不存在。
+     若只讀舊欄位，站名會變成「—」、stationKey 會變成空字串，令 AQHI
+     全部對不上、標記全部變灰（2026-10-28 線上實測的故障）。
+     因此一律先讀新欄位、再退回舊欄位，兩個架構都可運作；
+     AQHI 的 station 是英文地區名，故對照鍵永遠由英文站名衍生。 */
+  function airNameEn(p) { return p.NameEN || p.Facility_Name || ''; }
+  function airName(p, lang) {
+    return lang === 'tc'
+      ? (p.NameTC || p['設施名稱'] || p.NameEN || p.Facility_Name || '')
+      : (p.NameEN || p.Facility_Name || p.NameTC || p['設施名稱'] || '');
+  }
+  function airAddress(p, lang) {
+    return lang === 'tc'
+      ? (p.AddressTC || p['地址'] || p.AddressEN || p.Address || '')
+      : (p.AddressEN || p.Address || p.AddressTC || p['地址'] || '');
+  }
+  function airType(p, lang) {
+    return lang === 'tc'
+      ? (p.AqmsTypeTC || p['空氣質素監測站類別'] || p.AqmsTypeEN || p.Types_of_Air_Quality_Monitoring_Station || '')
+      : (p.AqmsTypeEN || p.Types_of_Air_Quality_Monitoring_Station || p.AqmsTypeTC || p['空氣質素監測站類別'] || '');
+  }
+  function airStationKey(p) { return stationKey(airNameEn(p)); }
 
   /* 空氣質素健康指數 → 健康風險級別（官方五級：低、中、高、甚高、嚴重） */
   function riskLevelOf(aqhi) {
@@ -1994,10 +2076,9 @@ body.has-subtabs .sub-caret { display: block; }
 
   /* ---- 空氣質素 Popup ---- */
   function airPopup(p, aqhi) {
-    const name = state.lang === 'tc' ? (p['設施名稱'] || p.Facility_Name) : (p.Facility_Name || p['設施名稱']);
-    const addr = state.lang === 'tc' ? (p['地址'] || p.Address) : (p.Address || p['地址']);
-    const stype = state.lang === 'tc' ? (p['空氣質素監測站類別'] || p.Types_of_Air_Quality_Monitoring_Station)
-                                      : (p.Types_of_Air_Quality_Monitoring_Station || p['空氣質素監測站類別']);
+    const name = airName(p, state.lang);
+    const addr = airAddress(p, state.lang);
+    const stype = airType(p, state.lang);
     let rows = '';
     if (addr) rows += row(t('popup.address'), `<span class="cp-address">${esc(addr)}</span>`);
     if (stype) rows += row(t('popup.stationType'), esc(stype));
@@ -2635,17 +2716,15 @@ body.has-subtabs .sub-caret { display: block; }
       pointToMarker: true,
       onEachFeature: (feature, lyr) => {
         const p = feature.properties || {};
-        const key = stationKey(p.Facility_Name);
+        const key = airStationKey(p);
         const a = byKey[key];
-        if (a) matched++; else unmatched.push(p.Facility_Name);
+        if (a) matched++; else unmatched.push(airNameEn(p) || key || '(unknown)');
         const aqhiVal = a ? a.aqhi : null;
         const color = aqhiVal != null ? AQHI_COLOR[aqhiClass(aqhiVal)] : '#7f8c8d';
         lyr.setIcon(pinIcon(color, '🌬'));
         lyr.bindPopup(() => airPopup(p, a), { className: 'custom-popup-wrap', maxWidth: 300, autoPan: true, autoPanPadding: [30, 60] });
         // 同上：tooltip 延遲求值，避免切換語言後殘留舊語言
-        lyr.bindTooltip(() => esc(state.lang === 'tc'
-          ? (p['設施名稱'] || p.Facility_Name)
-          : (p.Facility_Name || p['設施名稱'])), { direction: 'top', offset: [0, -20] });
+        lyr.bindTooltip(() => esc(airName(p, state.lang)), { direction: 'top', offset: [0, -20] });
       },
       filter: (f) => f.geometry && f.geometry.type === 'Point'
     });
@@ -3316,6 +3395,7 @@ body.has-subtabs .sub-caret { display: block; }
         else if (id === 'cnp') lyr = await loadCnpLayer();
         layers[id] = lyr;
         state.loaded[id] = true;
+        state.fetchedAt[id] = Date.now();
         state.errors[id] = false;
         setTabError(id, false);
         return lyr;
@@ -3390,6 +3470,7 @@ body.has-subtabs .sub-caret { display: block; }
       }
     }
     renderLegend();
+    updateDataStatus();
     if (isMobile() && !legendTouched) setLegendCollapsed(true);
   }
 
@@ -3404,6 +3485,155 @@ body.has-subtabs .sub-caret { display: block; }
     if (id === state.active) return;
     activate(id);
   }, DEBOUNCE_MS);
+
+  /* ======================================================================
+     12b. 自動更新（數據定時刷新／過期提示／App 版本檢查）
+     ----------------------------------------------------------------------
+     背景：改版前圖層在一個 session 內只抓一次，AQHI 每小時變、充電器
+     快照每 15 分鐘由 GitHub Actions 更新，長時間開着頁面的人卻永遠
+     看着舊數據，而且介面沒有任何「最後更新」總覽。
+     現在：
+       - 空氣（AQHI）每 10 分鐘、充電可用情況快照每 15 分鐘，在分頁
+         可見時自動重抓；其餘圖層的官方數據變動慢（每日或更慢）兼
+         體積大（生境約 8MB、回收約 2.9MB），不在背景硬抓，改為顯示
+         最後更新時間 + 過期提示，並提供手動重新整理掣。
+       - 左下角狀態列顯示目前圖層的最後更新時間，超齡時標示「可能
+         已過期」；重抓失敗時保留現有圖層，不會把地圖變空白。
+       - App 版本：定時比對同源 version.json（no-store，Service
+         Worker 不得快取），版本不同才顯示「有新版本可用」橫額，
+         由使用者按下才重載，不會在看地圖途中強行刷新。
+     ====================================================================== */
+  const APP_VERSION = '2026.10.28-2';
+  const AUTO_REFRESH_MS = { air: 10 * 60 * 1000, ev: 15 * 60 * 1000 };
+  const STALE_MS = { air: 90 * 60 * 1000, ev: 45 * 60 * 1000 };
+  const DEFAULT_STALE_MS = 25 * 60 * 60 * 1000;
+  /* 圖層 id → DATA 設定鍵（noise 分頁的數據鍵是 lnrs；air 另連帶 AQHI） */
+  const LAYER_DATA_KEYS = { air: ['air', 'aqhi'], noise: ['lnrs'] };
+  let appUpdateShown = false;
+  let bootVersion = null;   // 本次載入時 version.json 的版本；其後有變即代表已發佈新版
+
+  function updateDataStatus() {
+    const el = $('#data-status');
+    const txt = $('#data-status-text');
+    if (!el || !txt) return;
+    const lid = activeLayerId();
+    const ts = state.fetchedAt[lid];
+    if (!ts) { el.classList.remove('show'); return; }
+    const staleAfter = STALE_MS[lid] || DEFAULT_STALE_MS;
+    const stale = Date.now() - ts > staleAfter;
+    txt.textContent = `${t('ui.lastUpdated')} ${fmtDateTime(new Date(ts))}` +
+      (stale ? ` · ${t('ui.stale')}` : '');
+    el.classList.toggle('is-stale', stale);
+    el.classList.add('show');
+  }
+
+  /* 令某圖層失效：清走它的 localStorage 快取與地圖上的圖層物件，
+     下次（或即刻，若它正是目前圖層）重新抓取。 */
+  function invalidateLayer(id) {
+    (LAYER_DATA_KEYS[id] || [id]).forEach((k) => {
+      if (DATA[k] && DATA[k].cacheKey) cache.remove(DATA[k].cacheKey);
+    });
+    const prev = layers[id];
+    if (prev && map && map.hasLayer(prev)) map.removeLayer(prev);
+    layers[id] = null;
+    state.loaded[id] = false;
+  }
+
+  /* 重新抓取一個圖層；若它正是目前顯示的圖層就即場重畫（不重置視角）。
+     回傳是否成功；失敗時 ensureLayer 已記錄錯誤狀態，不會清走地圖。 */
+  async function refreshLayer(id) {
+    if (state.loading[id]) return false;
+    const wasActive = activeLayerId() === id;
+    invalidateLayer(id);
+    if (!wasActive) return true;
+    await activate(state.active);
+    return !state.errors[id];
+  }
+
+  /* 充電圖層的時效部分只有可用情況快照（data/ev-availability.json，
+     由 GitHub Actions 每 15 分鐘更新）；靜態充電器位置體積大且很少變，
+     故自動／手動更新只重抓快照，不重抓整個圖層。fetchJson 經 Service
+     Worker 時該檔已改為 network-first（見 sw.js），不會被舊快取卡住。 */
+  async function refreshEvAvailability() {
+    evAvailPromise = null;
+    evAvailIndex = null;
+    await ensureEvAvail();
+    state.fetchedAt.ev = Date.now();
+    state.meta.ev = fmtDateTime(new Date());
+  }
+
+  async function onRefreshClick() {
+    const lid = activeLayerId();
+    const btn = $('#refresh-btn');
+    if (btn) btn.disabled = true;
+    try {
+      if (lid === 'ev') {
+        await refreshEvAvailability();
+        toast(t('ui.refreshed'));
+      } else {
+        const ok = await refreshLayer(lid);
+        toast(ok ? t('ui.refreshed') : t('ui.refreshFailed'));
+      }
+    } catch (e) {
+      toast(t('ui.refreshFailed'));
+    } finally {
+      if (btn) btn.disabled = false;
+      updateDataStatus();
+    }
+  }
+
+  async function autoRefreshTick() {
+    if (document.hidden) return;               // 背景分頁不浪費請求
+    const lid = activeLayerId();
+    const interval = AUTO_REFRESH_MS[lid];
+    if (!interval) { updateDataStatus(); return; }
+    const ts = state.fetchedAt[lid] || 0;
+    if (Date.now() - ts < interval) { updateDataStatus(); return; }
+    try {
+      if (lid === 'ev') await refreshEvAvailability();
+      else await refreshLayer(lid);
+      console.info(`[自動更新] ${lid} 已重抓`);
+    } catch (e) {
+      console.warn('[自動更新] 重抓失敗，保留現有資料：', e);
+    }
+    updateDataStatus();
+  }
+
+  /* App 版本檢查：version.json 由 release-version workflow 在
+     index.html／sw.js 有改動時自動更新；本函式記下「載入當刻」的
+     版本，其後比對到不同版本即代表已發佈新版（不依賴人手同步
+     APP_VERSION 常數，APP_VERSION 只供除錯顯示）。Service Worker
+     的 registration.update() 一併在此觸發。 */
+  async function checkAppUpdate() {
+    try {
+      const res = await fetch('version.json', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.version) {
+          if (bootVersion === null) bootVersion = data.version;
+          else if (data.version !== bootVersion && !appUpdateShown) {
+            appUpdateShown = true;
+            const banner = $('#update-banner');
+            if (banner) banner.classList.add('show');
+          }
+        }
+      }
+    } catch (e) { /* 離線或未部署 version.json：靜默跳過 */ }
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) await reg.update();
+      } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  function startAutoUpdate() {
+    setInterval(autoRefreshTick, 60 * 1000);
+    setInterval(checkAppUpdate, 30 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { autoRefreshTick(); checkAppUpdate(); updateDataStatus(); }
+    });
+  }
 
   /* ======================================================================
      13. 主題切換
@@ -3518,6 +3748,14 @@ body.has-subtabs .sub-caret { display: block; }
     refreshTabLabels();
     const a2hsTxt = $('#a2hs-text');
     if (a2hsTxt) a2hsTxt.textContent = t('ui.a2hs');
+    const refreshBtn = $('#refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.setAttribute('aria-label', t('ui.refresh'));
+      refreshBtn.title = t('ui.refresh');
+    }
+    const ubTxt = $('#update-banner-text');
+    if (ubTxt) ubTxt.textContent = t('ui.newVersion');
+    updateDataStatus();
 
     /* 字體大小按鈕的標籤／title 也要跟著語言走 */
     applyFontScale(state.fs, false);
@@ -3553,6 +3791,8 @@ body.has-subtabs .sub-caret { display: block; }
     $('#lang-btn').addEventListener('click', () => {
       applyLang(state.lang === 'tc' ? 'en' : 'tc', true);
     });
+    $('#refresh-btn').addEventListener('click', onRefreshClick);
+    $('#update-banner').addEventListener('click', () => { location.reload(); });
     $('#fs-down').addEventListener('click', () => stepFontScale(-1));
     $('#fs-up').addEventListener('click', () => stepFontScale(1));
     $('#legend-head').addEventListener('click', () => {
@@ -3655,6 +3895,8 @@ body.has-subtabs .sub-caret { display: block; }
     state.active = null;
     activate('air');
     prefetchRest();
+    startAutoUpdate();
+    checkAppUpdate();
 
     // 視窗尺寸變化時重繪地圖，並同步手機版 UI
     window.addEventListener('resize', debounce(() => {
@@ -3698,11 +3940,9 @@ body.has-subtabs .sub-caret { display: block; }
         cachedStatuses: Object.keys(beachHistoryCache).map((k) => beachHistoryCache[k].status),
         viewKeys: Object.keys(beachHistoryView).map((k) => k + '=' + beachHistoryView[k])
       }),
-      reload: () => {
-        const lid = activeLayerId();
-        layers[lid] = null; state.loaded[lid] = false;
-        return activate(state.active);
-      }
+      reload: () => refreshLayer(activeLayerId()),
+      appVersion: APP_VERSION,
+      checkAppUpdate: checkAppUpdate,
     };
   }
 

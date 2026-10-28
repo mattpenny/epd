@@ -1,0 +1,25 @@
+name: Check air-data schema
+
+# WHY: see tools/check-air-schema.mjs — the AQMN dataset changed its
+# field names once already (Oct 2026) and the failure was silent in the
+# page (blank station names, grey markers). This weekly check fails the
+# workflow if the schema drifts again or the AQHI station join breaks,
+# so the problem is found by an alert instead of by a user.
+
+on:
+  schedule:
+    - cron: '23 2 * * 1'        # 02:23 UTC every Monday
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify AQMN fields and AQHI station matching
+        run: node tools/check-air-schema.mjs

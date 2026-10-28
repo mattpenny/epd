@@ -4,10 +4,14 @@
    - App Shell（HTML / manifest / icons / CDN 資源）：cache-first
    - 地圖圖塊（政府矢量地形圖、CartoDB、地名標籤）：cache-first，上限 100 張
    - 空間數據 API（CSDI / DATA.GOV.HK）：network-first，24 小時離線備援
+   - 同源 data/*.json 快照（EV 可用情況／水質歷史）：network-first
+     （v2 時它們會落入 App Shell 的 cache-first，令 GitHub Actions 已
+     更新的快照被舊快取卡住，頁面永遠看不到新數據 —— v3 修正此點）
+   - version.json：不攔截，由頁面以 no-store 直接抓取作版本比對
    ========================================================================== */
 'use strict';
 
-const VERSION = 'hk-env-map-v2';
+const VERSION = 'hk-env-map-v3';
 const SHELL_CACHE = VERSION + '-shell';
 const TILE_CACHE = VERSION + '-tiles';
 const DATA_CACHE = VERSION + '-data';
@@ -35,6 +39,22 @@ function isTile(url) {
   return /mapapi\.geodata\.gov\.hk\/.*\/xyz\//.test(url) ||
     /services\.arcgisonline\.com\/.*\/MapServer\/tile\//.test(url) ||
     /basemaps\.cartocdn\.com\//.test(url);
+}
+
+/* 同源數據快照（data/ev-availability.json、data/wq-history.json） */
+function isLocalData(url) {
+  try {
+    const u = new URL(url);
+    return u.origin === self.location.origin && /\/data\/[^/]+\.json$/.test(u.pathname);
+  } catch (e) { return false; }
+}
+
+/* 版本檔：絕不可快取，否則版本檢查永遠比對到舊版本 */
+function isVersionFile(url) {
+  try {
+    const u = new URL(url);
+    return u.origin === self.location.origin && u.pathname.endsWith('/version.json');
+  } catch (e) { return false; }
 }
 
 /* 空間數據 API */
@@ -156,8 +176,9 @@ self.addEventListener('fetch', (event) => {
 
   const url = req.url;
 
+  if (isVersionFile(url)) return;   // 不攔截：讓頁面的 no-store 請求直達網絡
   if (isTile(url)) { event.respondWith(handleTile(req)); return; }
-  if (isDataApi(url)) { event.respondWith(handleData(req)); return; }
+  if (isDataApi(url) || isLocalData(url)) { event.respondWith(handleData(req)); return; }
   if (req.mode === 'navigate') { event.respondWith(handleNavigate(req)); return; }
 
   // App Shell 其餘資源：cache-first

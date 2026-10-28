@@ -1,0 +1,58 @@
+name: Bump app version on release changes
+
+# WHY: the page polls version.json (no-store, never cached by sw.js) and
+# shows an "update available" prompt when the version it loaded with no
+# longer matches. That only works if version.json changes whenever the
+# app itself changes — but not when only data snapshots change (the EV
+# workflow commits those every 15 minutes; bumping the version for them
+# would nag every user to reload for no reason, and data/*.json is
+# network-first in the service worker anyway).
+#
+# So: only pushes touching the app shell bump the version. The bump
+# commit itself only touches version.json, which is not in the paths
+# filter, so this workflow cannot retrigger itself.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'sw.js'
+      - 'manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-version
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write a fresh version stamp
+        run: |
+          VERSION="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          node -e '
+            const fs = require("fs");
+            const v = JSON.parse(fs.readFileSync("version.json", "utf8"));
+            v.version = process.argv[1];
+            fs.writeFileSync("version.json", JSON.stringify(v, null, 2) + "\n");
+          ' "$VERSION"
+          echo "Version -> $VERSION"
+
+      - name: Commit if the version changed
+        run: |
+          if [ -z "$(git status --porcelain version.json)" ]; then
+            echo "Version unchanged; nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore: bump app version"
+          git push
