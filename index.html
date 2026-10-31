@@ -416,6 +416,14 @@ body.has-subtabs .sub-caret { display: block; }
    用 screen 混合模式讓黑色「消失」、亮部疊加在地圖上，讀起來像熱力圖。 */
 .l10-tile { mix-blend-mode: screen; }
 
+/* 深色底圖：直接用政府（地政總署）圖磚逐磚反色。
+   原本深色模式用 Esri 海外圖磚，但實測在本地手機網絡上圖磚請求
+   長時間零回應（淺色正常、深色永遠空白）。政府圖磚與淺色模式共用
+   同一組 URL／快取，本機供應、速度與淺色一致；invert + hue-rotate
+   令水色／陸色大致保持原色相、文字標籤由黑變白。className 由
+   L.tileLayer 套到每一張圖磚 <img> 上（見 applyTheme）。 */
+.dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.92); }
+
 /* 自訂標記 */
 .pin {
   width: 22px; height: 22px; border-radius: 50% 50% 50% 0;
@@ -1328,9 +1336,11 @@ body.has-subtabs .sub-caret { display: block; }
   };
 
   /* 底圖
-     註：原計劃的 CartoDB Dark Matter 現已要求 API key，
-     無 key 時會回傳帶「API KEY REQUIRED」浮水印的佔位圖，
-     因此深色模式改用 Esri World Dark Gray Base（同樣為 WGS84 / Web Mercator）。 */
+     註：深色模式曾先後用 CartoDB Dark Matter（現要求 API key）與
+     Esri World Dark Gray Base，但 Esri 圖磚在本地手機網絡實測
+     長時間零回應，2026-10-31 起改用下方 light／label 政府圖磚
+     加 .dark-tiles 反色濾鏡（見 applyTheme）。darkBase／darkRef
+     及 DARK_ATTR 僅保留作歷史對照，程式已不再使用。 */
   const BASEMAP = {
     light: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/basemap/WGS84/{z}/{x}/{y}.png',
     labelTc: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/tc/WGS84/{z}/{x}/{y}.png',
@@ -3742,11 +3752,16 @@ body.has-subtabs .sub-caret { display: block; }
       if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
 
       if (theme === 'dark') {
-        basemapLayer = L.layerGroup([
-          L.tileLayer(BASEMAP.darkBase, { maxZoom: 19, attribution: DARK_ATTR }),
-          L.tileLayer(BASEMAP.darkRef, { maxZoom: 19 })
-        ]).addTo(map);
-        // Esri 深色底圖本身已含地名，無需另加政府地名圖層
+        /* 深色底圖改用政府圖磚＋.dark-tiles 反色濾鏡（見 CSS 說明）：
+           Esri 海外圖磚在本地手機網絡實測長時間零回應，深色模式
+           因此永遠空白；政府圖磚與淺色共用快取，載入速度一致。
+           地名標籤同樣以濾鏡處理（黑字→白字），需與淺色一樣另掛標籤層。 */
+        basemapLayer = L.tileLayer(BASEMAP.light, {
+          maxZoom: 19, maxNativeZoom: 19, attribution: GOV_ATTR, className: 'dark-tiles'
+        }).addTo(map);
+        labelLayer = L.tileLayer(state.lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
+          maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95, className: 'dark-tiles'
+        }).addTo(map);
       } else {
         basemapLayer = L.tileLayer(BASEMAP.light, {
           maxZoom: 19, maxNativeZoom: 19, attribution: GOV_ATTR
@@ -3762,8 +3777,8 @@ body.has-subtabs .sub-caret { display: block; }
     if (persist) { try { localStorage.setItem(STORAGE.theme, theme); } catch (e) {} }
   }
 
-  /* 底圖載入提示：切換主題後，新底圖的圖磚可能要數秒才畫完（深色 Esri
-     圖磚首次載入尤其慢），期間地圖看似一片空白、像壞掉一樣。改為：
+  /* 底圖載入提示：切換主題後，新底圖的圖磚可能要數秒才畫完，
+     期間地圖看似一片空白、像壞掉一樣。改為：
      500ms 後仍未載完才顯示既有的載入膠囊（快取命中時完全不閃爍），
      全部圖層觸發 load 後收起；25 秒安全網確保膠囊不會永遠掛住。 */
   let basemapPillTimer = null, basemapPillFailsafe = null;
@@ -3836,11 +3851,12 @@ body.has-subtabs .sub-caret { display: block; }
       if (el) el.setAttribute('aria-label', t('ui.tabsLabel'));
     });
 
-    // 地名標籤圖層
-    if (map && labelLayer && state.theme === 'light') {
+    // 地名標籤圖層（深淺模式都要跟語言重建；深色模式另加反色濾鏡 class）
+    if (map && labelLayer) {
       map.removeLayer(labelLayer);
       labelLayer = L.tileLayer(lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
-        maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95
+        maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95,
+        className: state.theme === 'dark' ? 'dark-tiles' : ''
       }).addTo(map);
     }
 
@@ -3947,32 +3963,8 @@ body.has-subtabs .sub-caret { display: block; }
   const PREFETCH_DELAY_MS = 2500;
   const PREFETCH_GAP_MS = 200;
 
-  /* 預熱深色底圖：深色模式的 Esri 圖磚首次載入很慢（實測桌面約 10 秒，
-     手機網絡更久，看起來像「深色模式永遠不渲染」）。在淺色模式閒置時，
-     先以 fetch 把香港範圍預設縮放級別的深色圖磚（底圖＋參考層）拉一次，
-     經 Service Worker 寫入圖磚快取；之後切換深色模式即近乎即時。
-     節制：目前已是深色模式、使用省流量模式、或網絡為 2G／3G 時不做；
-     範圍只限預設視野（z11、香港市區），共 18 張圖磚（約 0.3MB）。 */
-  function prewarmDarkTiles() {
-    if (state.theme === 'dark') return;
-    const conn = navigator.connection || {};
-    if (conn.saveData) return;
-    if (/(^|-)2g$|3g/.test(conn.effectiveType || '')) return;
-    const z = MAP_DEFAULT_ZOOM;
-    const xt = (lng) => Math.floor((lng + 180) / 360 * Math.pow(2, z));
-    const yt = (lat) => {
-      const r = lat * Math.PI / 180;
-      return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
-    };
-    const urls = [];
-    for (let x = xt(113.95); x <= xt(114.35); x++) {
-      for (let y = yt(22.50); y <= yt(22.20); y++) {
-        urls.push(BASEMAP.darkBase.replace('{z}', z).replace('{x}', x).replace('{y}', y));
-        urls.push(BASEMAP.darkRef.replace('{z}', z).replace('{x}', x).replace('{y}', y));
-      }
-    }
-    urls.forEach((u, i) => setTimeout(() => { fetch(u, { mode: 'no-cors' }).catch(() => {}); }, i * 120));
-  }
+  /* （已移除）深色底圖預熱：深色模式已改用政府圖磚＋反色濾鏡，
+     與淺色共用同一組圖磚快取，不再需要預先下載 Esri 圖磚。 */
 
   function prefetchRest() {
     // 只在使用者閒置時才做，避免與首屏競爭
@@ -4046,9 +4038,6 @@ body.has-subtabs .sub-caret { display: block; }
     prefetchRest();
     startAutoUpdate();
     checkAppUpdate();
-    /* 開機 6 秒後在背景預熱深色圖磚（只在淺色模式且網絡不太差時，
-       見 prewarmDarkTiles 內的守則），令首次切換深色模式近乎即時。 */
-    setTimeout(prewarmDarkTiles, 6000);
 
     // 視窗尺寸變化時重繪地圖，並同步手機版 UI
     window.addEventListener('resize', debounce(() => {
