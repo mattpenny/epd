@@ -1,4 +1,4 @@
 {
   "note": "App version stamp. The app records the version it loaded with and prompts the user to update when this file changes. release-version.yml refreshes it automatically on pushes that change index.html, sw.js or manifest.json; data-only snapshot commits do not bump it (data files are network-first in sw.js, so they need no app reload).",
-  "version": "2026.10.31-21d181a"
+  "version": "2026.10.31-a3359f8"
 }
