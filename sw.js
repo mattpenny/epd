@@ -2,7 +2,9 @@
    香港環保數據地圖 — Service Worker
    策略：
    - App Shell（HTML / manifest / icons / CDN 資源）：cache-first
-   - 地圖圖塊（政府矢量地形圖、CartoDB、地名標籤）：cache-first，上限 100 張
+   - 地圖圖塊（政府矢量地形圖、CartoDB、地名標籤）：cache-first，上限 400 張
+     （100 張要同時容納淺色底圖＋標籤、深色底圖＋參考層四組圖磚並不足夠，
+     深色圖磚經常被逐出，令每次切換深色模式都要重新慢速下載，2026-10-31 提升至 400）
    - 空間數據 API（CSDI / DATA.GOV.HK）：network-first，24 小時離線備援
    - 同源 data/*.json 快照（EV 可用情況／水質歷史）：network-first
      （v2 時它們會落入 App Shell 的 cache-first，令 GitHub Actions 已
@@ -16,7 +18,7 @@ const SHELL_CACHE = VERSION + '-shell';
 const TILE_CACHE = VERSION + '-tiles';
 const DATA_CACHE = VERSION + '-data';
 
-const TILE_CACHE_LIMIT = 100;      // 最近 100 張圖塊
+const TILE_CACHE_LIMIT = 400;      // 最近 400 張圖塊（四組底圖圖磚並存所需）
 const DATA_TTL = 24 * 60 * 60 * 1000;
 
 /* App Shell 資源 */

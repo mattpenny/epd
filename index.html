@@ -3757,8 +3757,31 @@ body.has-subtabs .sub-caret { display: block; }
       }
       if (basemapLayer.bringToBack) basemapLayer.bringToBack();
       else if (basemapLayer.eachLayer) basemapLayer.eachLayer((l) => l.bringToBack && l.bringToBack());
+      indicateBasemapLoading(basemapLayer);
     }
     if (persist) { try { localStorage.setItem(STORAGE.theme, theme); } catch (e) {} }
+  }
+
+  /* 底圖載入提示：切換主題後，新底圖的圖磚可能要數秒才畫完（深色 Esri
+     圖磚首次載入尤其慢），期間地圖看似一片空白、像壞掉一樣。改為：
+     500ms 後仍未載完才顯示既有的載入膠囊（快取命中時完全不閃爍），
+     全部圖層觸發 load 後收起；25 秒安全網確保膠囊不會永遠掛住。 */
+  let basemapPillTimer = null, basemapPillFailsafe = null;
+  function indicateBasemapLoading(group) {
+    const layers = [];
+    if (group && group.eachLayer) group.eachLayer((l) => layers.push(l));
+    else if (group) layers.push(group);
+    if (!layers.length) return;
+    clearTimeout(basemapPillTimer); clearTimeout(basemapPillFailsafe);
+    let pending = layers.length, settled = false;
+    const finish = () => {
+      if (settled) return; settled = true;
+      clearTimeout(basemapPillTimer); clearTimeout(basemapPillFailsafe);
+      showLoading(false);
+    };
+    layers.forEach((l) => l.once('load', () => { if (--pending <= 0) finish(); }));
+    basemapPillTimer = setTimeout(() => { if (!settled) showLoading(true); }, 500);
+    basemapPillFailsafe = setTimeout(finish, 25000);
   }
 
   /* ======================================================================
@@ -3924,6 +3947,33 @@ body.has-subtabs .sub-caret { display: block; }
   const PREFETCH_DELAY_MS = 2500;
   const PREFETCH_GAP_MS = 200;
 
+  /* 預熱深色底圖：深色模式的 Esri 圖磚首次載入很慢（實測桌面約 10 秒，
+     手機網絡更久，看起來像「深色模式永遠不渲染」）。在淺色模式閒置時，
+     先以 fetch 把香港範圍預設縮放級別的深色圖磚（底圖＋參考層）拉一次，
+     經 Service Worker 寫入圖磚快取；之後切換深色模式即近乎即時。
+     節制：目前已是深色模式、使用省流量模式、或網絡為 2G／3G 時不做；
+     範圍只限預設視野（z11、香港市區），共 18 張圖磚（約 0.3MB）。 */
+  function prewarmDarkTiles() {
+    if (state.theme === 'dark') return;
+    const conn = navigator.connection || {};
+    if (conn.saveData) return;
+    if (/(^|-)2g$|3g/.test(conn.effectiveType || '')) return;
+    const z = MAP_DEFAULT_ZOOM;
+    const xt = (lng) => Math.floor((lng + 180) / 360 * Math.pow(2, z));
+    const yt = (lat) => {
+      const r = lat * Math.PI / 180;
+      return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
+    };
+    const urls = [];
+    for (let x = xt(113.95); x <= xt(114.35); x++) {
+      for (let y = yt(22.50); y <= yt(22.20); y++) {
+        urls.push(BASEMAP.darkBase.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+        urls.push(BASEMAP.darkRef.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+      }
+    }
+    urls.forEach((u, i) => setTimeout(() => { fetch(u, { mode: 'no-cors' }).catch(() => {}); }, i * 120));
+  }
+
   function prefetchRest() {
     // 只在使用者閒置時才做，避免與首屏競爭
     const start = () => {
@@ -3996,6 +4046,9 @@ body.has-subtabs .sub-caret { display: block; }
     prefetchRest();
     startAutoUpdate();
     checkAppUpdate();
+    /* 開機 6 秒後在背景預熱深色圖磚（只在淺色模式且網絡不太差時，
+       見 prewarmDarkTiles 內的守則），令首次切換深色模式近乎即時。 */
+    setTimeout(prewarmDarkTiles, 6000);
 
     // 視窗尺寸變化時重繪地圖，並同步手機版 UI
     window.addEventListener('resize', debounce(() => {
