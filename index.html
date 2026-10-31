@@ -69,21 +69,13 @@ body { overflow: hidden; }
    pointer-events:none 不攔截任何點擊；減少動態偏好時靜止停泊。 */
 .topbar > .brand, .topbar > .tabs, .topbar > .actions { position: relative; z-index: 1; }
 #mascot {
-  position: absolute; left: 0; bottom: 0; z-index: 0;
+  position: absolute; left: 0; bottom: 4px; z-index: 0;
   pointer-events: none; user-select: none;
-  animation: mascot-walk 24s linear infinite;
   will-change: transform;
 }
 #mascot img {
-  display: block; height: 43px; width: auto;
+  display: block; height: 26px; width: auto;
   animation: mascot-waddle .55s ease-in-out infinite alternate;
-}
-@keyframes mascot-walk {
-  0%   { transform: translateX(-56px) scaleX(1); }
-  44%  { transform: translateX(calc(100vw - 50px)) scaleX(1); }
-  50%  { transform: translateX(calc(100vw - 50px)) scaleX(-1); }
-  94%  { transform: translateX(-56px) scaleX(-1); }
-  100% { transform: translateX(-56px) scaleX(1); }
 }
 @keyframes mascot-waddle {
   from { transform: rotate(-2.5deg) translateY(0); }
@@ -3825,6 +3817,7 @@ body.has-subtabs .sub-caret { display: block; }
     if (up) { up.setAttribute('aria-label', t('ui.fsIncrease')); up.title = t('ui.fsIncrease'); }
 
     if (persist) { try { localStorage.setItem(STORAGE.fs, String(i)); } catch (e) {} }
+    startMascot();   // A−/A+ 會改變右側按鈕寬度，吉祥物的掉頭點要跟著移
   }
   function stepFontScale(delta) { applyFontScale(state.fs + delta, true); }
 
@@ -3920,6 +3913,35 @@ body.has-subtabs .sub-caret { display: block; }
     map.on('popupclose', () => {
       document.querySelectorAll('.pin--active').forEach((p) => p.classList.remove('pin--active'));
     });
+  }
+
+  /* 吉祥物散步：活動範圍只限頂欄左側的白色背景，由左邊界走到
+     語言切換掣（.actions 左緣）之前便掉頭。終點需按實際版面量度，
+     故以 WAAPI 播放，並在開機／轉語言／改字體／視窗尺寸變化時重設。
+     頂欄高度不變；吉祥物高 26px，貼近應用名稱的文字帶。 */
+  let mascotAnim = null;
+  function startMascot() {
+    const el = $('#mascot');
+    const actions = document.querySelector('.topbar .actions');
+    if (!el || !actions) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (mascotAnim) { mascotAnim.cancel(); mascotAnim = null; }
+      el.style.transform = 'translateX(8px)';
+      return;
+    }
+    el.style.transform = '';
+    const w = el.getBoundingClientRect().width || 21;
+    const end = Math.max(24, actions.offsetLeft - w - 8);  // 在語言掣前停下掉頭
+    const prev = mascotAnim ? (mascotAnim.currentTime || 0) : 0;  // 保留進度，重設時不跳回起點
+    if (mascotAnim) mascotAnim.cancel();
+    mascotAnim = el.animate([
+      { transform: 'translateX(-30px) scaleX(1)', offset: 0 },
+      { transform: `translateX(${end}px) scaleX(1)`, offset: 0.44 },
+      { transform: `translateX(${end}px) scaleX(-1)`, offset: 0.50 },
+      { transform: 'translateX(-30px) scaleX(-1)', offset: 0.94 },
+      { transform: 'translateX(-30px) scaleX(1)', offset: 1 }
+    ], { duration: 15000, iterations: Infinity, easing: 'linear' });
+    if (prev) mascotAnim.currentTime = prev % 15000;
   }
 
   function initUI() {
@@ -4020,6 +4042,8 @@ body.has-subtabs .sub-caret { display: block; }
     applyTheme('light', false);
     applyLang(lang, false);   // 會建立底圖與標籤圖層
     applyFontScale(fsIdx, false);   // 套用已儲存的字體大小
+    startMascot();
+    window.addEventListener('load', () => startMascot());   // 圖片載入後寬度才準確，再校正一次
     renderLegend();
     syncMobileUI();
     initPWA();
@@ -4043,6 +4067,7 @@ body.has-subtabs .sub-caret { display: block; }
       syncMobileUI();
       positionSubTabs();          // 分頁寬度／位置可能改變，子分頁列要重新對齊
       moveTabIndicators();        // 桌面／手機版面切換後，指示線也要回到正確的分頁上
+      startMascot();              // 語言掣位置隨視窗寬度變，掉頭點要重設
     }, 150));
 
     /* 頂部分頁列可橫向捲動（窄視窗），捲動時子分頁列必須跟著跑，
@@ -4061,8 +4086,10 @@ body.has-subtabs .sub-caret { display: block; }
        positionSubTabs() 只改 #sub-tabs 的 left/top，不會回過頭改變分頁尺寸，
        故不會造成 ResizeObserver 迴圈。 */
     if (window.ResizeObserver) {
-      const ro = new ResizeObserver(() => { positionSubTabs(); moveTabIndicators(); });
+      const ro = new ResizeObserver(() => { positionSubTabs(); moveTabIndicators(); startMascot(); });
       document.querySelectorAll('.tab').forEach((b) => ro.observe(b));
+      const act = document.querySelector('.topbar .actions');
+      if (act) ro.observe(act);   // 語言／字體掣寬度一變，吉祥物掉頭點即時跟上
     }
 
     // 除錯／自動化測試用掛鉤（不影響一般使用）
