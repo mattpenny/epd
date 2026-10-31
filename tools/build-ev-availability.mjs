@@ -32,13 +32,29 @@ const SRC = 'https://ev-charger.epd.gov.hk/resource/ev_charger_avail/evca_ver_1_
 /* must mirror evCoordKey() in index.html */
 const coordKey = (lat, lng) => Number(lat).toFixed(5) + ',' + Number(lng).toFixed(5);
 
-console.log('fetching', SRC);
-const res = await fetch(SRC);
-if (!res.ok) {
-  console.error('upstream returned HTTP', res.status);
-  process.exit(1);
+/* The upstream server occasionally drops the connection mid-body, which
+   used to fail the whole run with "Unterminated string in JSON" (the file
+   is ~3.9 MB and was cut at ~3.78 MB on 2026-10-31). Retry the fetch and
+   only accept a body that parses as complete JSON. */
+async function fetchJsonWithRetry(url, attempts = 4) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      console.log(`fetching ${url} (attempt ${i}/${attempts})`);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`upstream returned HTTP ${res.status}`);
+      const text = await res.text();
+      return JSON.parse(text);
+    } catch (err) {
+      lastErr = err;
+      console.error(`attempt ${i} failed: ${err.message}`);
+      if (i < attempts) await new Promise(r => setTimeout(r, i * 3000));
+    }
+  }
+  throw lastErr;
 }
-const raw = await res.json();
+
+const raw = await fetchJsonWithRetry(SRC);
 const rows = Array.isArray(raw.data) ? raw.data : [];
 console.log(`upstream records: ${rows.length}`);
 
