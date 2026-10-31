@@ -26,6 +26,7 @@ const SHELL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './assets/big-waster.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
