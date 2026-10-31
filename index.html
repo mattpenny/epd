@@ -776,6 +776,7 @@ body.has-subtabs .sub-caret { display: block; }
   const i18n = {
     tc: {
       title: '香港環保數據地圖',
+      titleShort: '香港環保數據地圖',
       tabs: {
         air: '香港空氣質素監測網絡',
         water: '水質數據',
@@ -790,6 +791,11 @@ body.has-subtabs .sub-caret { display: block; }
         beach: '泳灘水質等級',
         marine: '近期海水水質數據',
         river: '近期河溪水質數據'
+      },
+      subsShort: {
+        beach: '泳灘等級',
+        marine: '海水水質',
+        river: '河溪水質'
       },
       datasetNames: {
         airNetwork: '香港空氣質素監測網絡',
@@ -958,6 +964,7 @@ body.has-subtabs .sub-caret { display: block; }
     },
     en: {
       title: 'Hong Kong Environmental Data Map',
+      titleShort: 'HK Env Data Map',
       tabs: {
         air: 'Hong Kong Air Quality Monitoring Network',
         water: 'Water Quality Data',
@@ -972,6 +979,11 @@ body.has-subtabs .sub-caret { display: block; }
         beach: 'Beach Water Quality Grading',
         marine: 'Recent Marine Water Quality Data',
         river: 'Recent River Water Quality Data'
+      },
+      subsShort: {
+        beach: 'Grading',
+        marine: 'Marine Data',
+        river: 'River Data'
       },
       datasetNames: {
         airNetwork: 'Hong Kong Air Quality Monitoring Network',
@@ -3336,9 +3348,13 @@ body.has-subtabs .sub-caret { display: block; }
 
     nav.innerHTML = subs.map((sid) => {
       const on = sid === state.waterSub;
+      /* 按鈕顯示縮寫（英文全名太長會溢出膠囊）；完整名稱保留在
+         title／aria-label，滑鼠懸停或讀屏時仍可取得。 */
+      const short = t('subsShort.' + sid) || t('subs.' + sid);
       return `<button class="sub-tab" type="button" role="tab" data-sub="${sid}"
                 aria-selected="${on ? 'true' : 'false'}" tabindex="${on ? 0 : -1}"
-                title="${esc(t('subs.' + sid))}">${esc(t('subs.' + sid))}</button>`;
+                aria-label="${esc(t('subs.' + sid))}"
+                title="${esc(t('subs.' + sid))}">${esc(short)}</button>`;
     }).join('');
 
     nav.querySelectorAll('.sub-tab').forEach((b) => {
@@ -3787,10 +3803,10 @@ body.has-subtabs .sub-caret { display: block; }
   function applyLang(lang, persist) {
     state.lang = lang;
     document.documentElement.setAttribute('lang', lang === 'tc' ? 'zh-Hant' : 'en');
-    document.title = t('title');
+    document.title = t('title');   // 瀏覽器分頁保留全名；頂欄空間有限，用縮寫
 
     // 標題與按鈕
-    $('#app-title').textContent = t('title');
+    $('#app-title').textContent = t('titleShort') || t('title');
     const langBtn = $('#lang-btn');
     langBtn.textContent = lang === 'tc' ? '中 / EN' : 'EN / 中';
     langBtn.setAttribute('aria-label', t('ui.langSwitch'));
