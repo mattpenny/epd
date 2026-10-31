@@ -64,21 +64,34 @@ body { overflow: hidden; }
   border-bottom: 1px solid var(--border-color);
   overflow: hidden;   /* 吉祥物散步範圍限制在頂欄內 */
 }
-/* 頂欄吉祥物「大嘥鬼」（以環保署官方角色為藍本的 3D Pixar 風格奔跑造型）：
-   沿頂欄底部緩慢來回散步，圖層在品牌／分頁／按鈕之下，不遮擋文字，
-   pointer-events:none 不攔截任何點擊；減少動態偏好時靜止停泊。 */
+/* 頂欄吉祥物「大嘥鬼」（以環保署官方角色為藍本的 3D Pixar 風格）：
+   真・逐格動畫 —— 行走時播放 4 格側面步行 sprite、停低時播放
+   3 格正面揮手 sprite（由 startMascot 的相位監察切換 .waving）。
+   外層 #mascot 由 WAAPI 負責沿頂欄移動；圖層在品牌／分頁／按鈕之下，
+   不遮擋文字，pointer-events:none 不攔截點擊；減少動態時靜止停泊。 */
 .topbar > .brand, .topbar > .tabs, .topbar > .actions { position: relative; z-index: 1; }
 #mascot {
   position: absolute; left: 0; bottom: 0; z-index: 0;
   pointer-events: none; user-select: none;
   will-change: transform;
 }
-#mascot img {
-  display: block; height: 16px; width: auto;   /* 步行動作全由外層 WAAPI 時間軸負責 */
+.mascot-win {
+  display: block; position: relative; overflow: hidden;
+  height: 16px; width: 10.4px;   /* 行走格闊（格 41.5×64 @16px 高） */
 }
+#mascot.waving .mascot-win { width: 13.8px; }   /* 揮手格較闊（55×64） */
+.mascot-sheet {
+  position: absolute; left: 0; top: 0;
+  height: 16px; width: auto; max-width: none;
+}
+.mascot-sheet.walk { animation: mascot-frames .5s steps(4) infinite; }
+.mascot-sheet.wave { display: none; animation: mascot-frames .8s steps(3) infinite; }
+#mascot.waving .mascot-sheet.walk { display: none; }
+#mascot.waving .mascot-sheet.wave { display: block; }
+@keyframes mascot-frames { to { transform: translateX(-100%); } }
 @media (prefers-reduced-motion: reduce) {
   #mascot { animation: none; transform: translateX(10px); }
-  #mascot img { animation: none; }
+  .mascot-sheet { animation: none; }
 }
 .brand { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .brand-dot {
@@ -714,7 +727,7 @@ body.has-subtabs .sub-caret { display: block; }
 <body>
 
 <header class="topbar">
-  <span id="mascot" aria-hidden="true"><img src="assets/big-waster-3d.png" alt="" width="69" height="96" decoding="async"></span>
+  <span id="mascot" aria-hidden="true"><span class="mascot-win"><img class="mascot-sheet walk" src="assets/big-waster-walk.webp" alt="" width="166" height="64" decoding="async"><img class="mascot-sheet wave" src="assets/big-waster-wave.webp" alt="" width="165" height="64" decoding="async"></span></span>
   <div class="brand">
     <span class="brand-dot" aria-hidden="true"></span>
     <h1 id="app-title">香港環保數據地圖</h1>
@@ -3915,17 +3928,20 @@ body.has-subtabs .sub-caret { display: block; }
      故以 WAAPI 播放，並在開機／轉語言／改字體／視窗尺寸變化時重設。
      頂欄高度不變；吉祥物高 16px 並貼欄底行走，頂部不碰應用名稱。 */
   let mascotAnim = null;
+  let mascotWatch = null;
   function startMascot() {
     const el = $('#mascot');
     const actions = document.querySelector('.topbar .actions');
     if (!el || !actions) return;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       if (mascotAnim) { mascotAnim.cancel(); mascotAnim = null; }
+      if (mascotWatch) { cancelAnimationFrame(mascotWatch); mascotWatch = null; }
+      el.classList.remove('waving');
       el.style.transform = 'translateX(8px)';
       return;
     }
     el.style.transform = '';
-    const w = el.getBoundingClientRect().width || 13;
+    const w = el.getBoundingClientRect().width || 11;
     const end = Math.max(24, actions.offsetLeft - w - 8);  // 在語言掣前停下掉頭
     /* 自然動作：每段路以 easeInOut 步速生成 12 步關鍵格（起步慢、
        中段巡航、埋尾慢），每步中段微微彈起兼左右輕擺；到埗先停一停
@@ -3943,7 +3959,7 @@ body.has-subtabs .sub-caret { display: block; }
     for (let i = 0; i <= STEPS; i++) {           // 去程（向右）
       const p = i / STEPS, t = i * stepT;
       push(t, X0 + (end - X0) * easeIO(p), 1, 0, 0);
-      if (i < STEPS) push(t + stepT / 2, X0 + (end - X0) * easeIO(p + .5 / STEPS), 1, -1.4, i % 2 ? 1.4 : -1.4);
+      if (i < STEPS) push(t + stepT / 2, X0 + (end - X0) * easeIO(p + .5 / STEPS), 1, -.9, 0);
     }
     push(LEG + .35, end, 1, -.4, 0);             // 到埗停留（呼吸）
     push(LEG + .62, end, 0, -2.4, 0);            // 小跳轉身（半空變向）
@@ -3953,7 +3969,7 @@ body.has-subtabs .sub-caret { display: block; }
     for (let i = 0; i <= STEPS; i++) {
       const p = i / STEPS, t = tB + i * stepT;
       push(t, end + (X0 - end) * easeIO(p), -1, 0, 0);
-      if (i < STEPS) push(t + stepT / 2, end + (X0 - end) * easeIO(p + .5 / STEPS), -1, -1.4, i % 2 ? -1.4 : 1.4);
+      if (i < STEPS) push(t + stepT / 2, end + (X0 - end) * easeIO(p + .5 / STEPS), -1, -.9, 0);
     }
     push(tB + LEG + IDLE_L * .5, X0, 0, -2, 0);  // 畫面外轉回向右
     push(TOTAL, X0, 1, 0, 0);
@@ -3961,6 +3977,17 @@ body.has-subtabs .sub-caret { display: block; }
     if (mascotAnim) mascotAnim.cancel();
     mascotAnim = el.animate(kfs, { duration: TOTAL * 1000, iterations: Infinity, easing: 'linear' });
     if (prev) mascotAnim.currentTime = prev % (TOTAL * 1000);
+    /* 相位監察：去程到埗停留期間，換上正面揮手 sprite（.waving），
+       其餘時間用側面步行 sprite。以動畫自身的 currentTime 為準，
+       重設／保留進度後仍同步。 */
+    if (mascotWatch) cancelAnimationFrame(mascotWatch);
+    const tick = () => {
+      if (!mascotAnim) { mascotWatch = null; return; }
+      const ph = mascotAnim.currentTime % (TOTAL * 1000);
+      el.classList.toggle('waving', ph >= 6500 && ph < 7950);
+      mascotWatch = requestAnimationFrame(tick);
+    };
+    mascotWatch = requestAnimationFrame(tick);
   }
 
   function initUI() {
