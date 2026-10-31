@@ -64,7 +64,7 @@ body { overflow: hidden; }
   border-bottom: 1px solid var(--border-color);
   overflow: hidden;   /* 吉祥物散步範圍限制在頂欄內 */
 }
-/* 頂欄吉祥物「大嘥鬼」（環保署「惜食香港」官方吉祥物圖像）：
+/* 頂欄吉祥物「大嘥鬼」（以環保署官方角色為藍本的 3D Pixar 風格奔跑造型）：
    沿頂欄底部緩慢來回散步，圖層在品牌／分頁／按鈕之下，不遮擋文字，
    pointer-events:none 不攔截任何點擊；減少動態偏好時靜止停泊。 */
 .topbar > .brand, .topbar > .tabs, .topbar > .actions { position: relative; z-index: 1; }
@@ -714,7 +714,7 @@ body.has-subtabs .sub-caret { display: block; }
 <body>
 
 <header class="topbar">
-  <span id="mascot" aria-hidden="true"><img src="assets/big-waster.png" alt="" width="137" height="176" decoding="async"></span>
+  <span id="mascot" aria-hidden="true"><img src="assets/big-waster-3d.png" alt="" width="69" height="96" decoding="async"></span>
   <div class="brand">
     <span class="brand-dot" aria-hidden="true"></span>
     <h1 id="app-title">香港環保數據地圖</h1>
