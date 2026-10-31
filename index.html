@@ -69,17 +69,17 @@ body { overflow: hidden; }
    pointer-events:none 不攔截任何點擊；減少動態偏好時靜止停泊。 */
 .topbar > .brand, .topbar > .tabs, .topbar > .actions { position: relative; z-index: 1; }
 #mascot {
-  position: absolute; left: 0; bottom: 4px; z-index: 0;
+  position: absolute; left: 0; bottom: 0; z-index: 0;
   pointer-events: none; user-select: none;
   will-change: transform;
 }
 #mascot img {
-  display: block; height: 26px; width: auto;
+  display: block; height: 16px; width: auto;
   animation: mascot-waddle .55s ease-in-out infinite alternate;
 }
 @keyframes mascot-waddle {
-  from { transform: rotate(-2.5deg) translateY(0); }
-  to   { transform: rotate(2.5deg) translateY(-2px); }
+  from { transform: rotate(-2deg) translateY(0); }
+  to   { transform: rotate(2deg) translateY(-1px); }
 }
 @media (prefers-reduced-motion: reduce) {
   #mascot { animation: none; transform: translateX(10px); }
@@ -3918,7 +3918,7 @@ body.has-subtabs .sub-caret { display: block; }
   /* 吉祥物散步：活動範圍只限頂欄左側的白色背景，由左邊界走到
      語言切換掣（.actions 左緣）之前便掉頭。終點需按實際版面量度，
      故以 WAAPI 播放，並在開機／轉語言／改字體／視窗尺寸變化時重設。
-     頂欄高度不變；吉祥物高 26px，貼近應用名稱的文字帶。 */
+     頂欄高度不變；吉祥物高 16px 並貼欄底行走，頂部不碰應用名稱。 */
   let mascotAnim = null;
   function startMascot() {
     const el = $('#mascot');
@@ -3930,7 +3930,7 @@ body.has-subtabs .sub-caret { display: block; }
       return;
     }
     el.style.transform = '';
-    const w = el.getBoundingClientRect().width || 21;
+    const w = el.getBoundingClientRect().width || 13;
     const end = Math.max(24, actions.offsetLeft - w - 8);  // 在語言掣前停下掉頭
     const prev = mascotAnim ? (mascotAnim.currentTime || 0) : 0;  // 保留進度，重設時不跳回起點
     if (mascotAnim) mascotAnim.cancel();
