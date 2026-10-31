@@ -38,18 +38,7 @@
      以免撐爆固定高度的按鈕。 */
   --fs: 1;
 }
-[data-theme="dark"] {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --text-primary: #eaeaea;
-  --text-secondary: #a0a0a0;
-  --border-color: #2a2a4a;
-  --tab-active: #4da6ff;
-  --popup-bg: #1e1e3a;
-  --popup-text: #eaeaea;
-  --shadow: 0 2px 10px rgba(0,0,0,.5);
-  --shadow-strong: 0 6px 24px rgba(0,0,0,.6);
-}
+/* 深色模式已於 2026-10-31 按站主決定完全移除，本站只提供淺色主題。 */
 
 * { box-sizing: border-box; }
 html, body {
@@ -141,6 +130,7 @@ body { overflow: hidden; }
   background: var(--popup-bg); color: var(--popup-text);
   border: 1px solid var(--border-color); border-radius: 999px;
   box-shadow: var(--shadow);
+  justify-content: center;
 }
 .sub-tabs::-webkit-scrollbar { display: none; }
 body.has-subtabs .sub-tabs { display: flex; }
@@ -416,13 +406,7 @@ body.has-subtabs .sub-caret { display: block; }
    用 screen 混合模式讓黑色「消失」、亮部疊加在地圖上，讀起來像熱力圖。 */
 .l10-tile { mix-blend-mode: screen; }
 
-/* 深色底圖：直接用政府（地政總署）圖磚逐磚反色。
-   原本深色模式用 Esri 海外圖磚，但實測在本地手機網絡上圖磚請求
-   長時間零回應（淺色正常、深色永遠空白）。政府圖磚與淺色模式共用
-   同一組 URL／快取，本機供應、速度與淺色一致；invert + hue-rotate
-   令水色／陸色大致保持原色相、文字標籤由黑變白。className 由
-   L.tileLayer 套到每一張圖磚 <img> 上（見 applyTheme）。 */
-.dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.92); }
+/* （.dark-tiles 反色濾鏡已隨深色模式於 2026-10-31 一併移除。） */
 
 /* 自訂標記 */
 .pin {
@@ -721,8 +705,6 @@ body.has-subtabs .sub-caret { display: block; }
   <nav class="tabs" role="tablist" id="tabs" aria-label="數據圖層"></nav>
 
   <div class="actions">
-    <button class="icon-btn" id="theme-btn" type="button"
-            aria-label="切換深色/淺色模式" title="切換深色/淺色模式">🌙</button>
     <button class="icon-btn" id="lang-btn" type="button"
             aria-label="切換語言 中文/English" title="切換語言">中 / EN</button>
     <div class="fs-group" role="group" id="fs-group" aria-label="字體大小">
@@ -940,8 +922,6 @@ body.has-subtabs .sub-caret { display: block; }
         a2hs: '加到主畫面',
         recycleAll: '全部回收點',
         recycleGreen: '只顯示「綠在區區」回收網絡',
-        themeLight: '切換至淺色模式',
-        themeDark: '切換至深色模式',
         langSwitch: '切換語言',
         fsGroup: '字體大小',
         fsDecrease: '縮小字體',
@@ -1125,8 +1105,6 @@ body.has-subtabs .sub-caret { display: block; }
         a2hs: 'Add to Home Screen',
         recycleAll: 'All collection points',
         recycleGreen: 'Show "Green Community" network only',
-        themeLight: 'Switch to light mode',
-        themeDark: 'Switch to dark mode',
         langSwitch: 'Switch language',
         fsGroup: 'Font size',
         fsDecrease: 'Decrease font size',
@@ -1335,21 +1313,14 @@ body.has-subtabs .sub-caret { display: block; }
     }
   };
 
-  /* 底圖
-     註：深色模式曾先後用 CartoDB Dark Matter（現要求 API key）與
-     Esri World Dark Gray Base，但 Esri 圖磚在本地手機網絡實測
-     長時間零回應，2026-10-31 起改用下方 light／label 政府圖磚
-     加 .dark-tiles 反色濾鏡（見 applyTheme）。darkBase／darkRef
-     及 DARK_ATTR 僅保留作歷史對照，程式已不再使用。 */
+  /* 底圖：地政總署圖磚（底圖＋地名標籤）。
+     深色模式已於 2026-10-31 完全移除（其 Esri／反色濾鏡方案均已棄用）。 */
   const BASEMAP = {
     light: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/basemap/WGS84/{z}/{x}/{y}.png',
     labelTc: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/tc/WGS84/{z}/{x}/{y}.png',
-    labelEn: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/en/WGS84/{z}/{x}/{y}.png',
-    darkBase: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    darkRef: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+    labelEn: 'https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/en/WGS84/{z}/{x}/{y}.png'
   };
   const GOV_ATTR = '地圖資料：<a href="https://www.landsd.gov.hk/" target="_blank" rel="noopener">地政總署</a>';
-  const DARK_ATTR = '地圖資料：Esri、HERE、Garmin、© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 貢獻者';
 
   /* ======================================================================
      3. 全域狀態
@@ -3394,8 +3365,12 @@ body.has-subtabs .sub-caret { display: block; }
     const a = anchor.getBoundingClientRect();
     const vw = document.documentElement.clientWidth;
     const w = nav.offsetWidth;
-    // 左緣對齊分頁左緣，再往內夾住，確保整列不超出視窗
-    const left = Math.round(Math.max(8, Math.min(a.left, vw - w - 8)));
+    /* 手機版：整個膠囊在畫面上置中（三個切換鈕看起來才在容器正中）；
+       桌面版：左緣對齊分頁左緣。兩者都往內夾住，確保不超出視窗。
+       箭嘴維持指向「水質數據」分頁（下方 caret 邏輯以 left 為界夾住）。 */
+    const left = mobile
+      ? Math.round(Math.max(8, (vw - w) / 2))
+      : Math.round(Math.max(8, Math.min(a.left, vw - w - 8)));
     nav.style.left = left + 'px';
     nav.style.right = 'auto';
 
@@ -3734,50 +3709,34 @@ body.has-subtabs .sub-caret { display: block; }
   }
 
   /* ======================================================================
-     13. 主題切換
+     13. 底圖（只設淺色主題；深色模式已於 2026-10-31 完全移除）
      ====================================================================== */
   function applyTheme(theme, persist) {
-    state.theme = theme;
-    document.documentElement.setAttribute('data-theme', theme);
+    state.theme = 'light';
+    document.documentElement.setAttribute('data-theme', 'light');
     const meta = $('#meta-theme-color');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#1a1a2e' : '#ffffff');
-    const btn = $('#theme-btn');
-    btn.textContent = theme === 'dark' ? '☀️' : '🌙';
-    btn.setAttribute('aria-label', theme === 'dark' ? t('ui.themeLight') : t('ui.themeDark'));
-    btn.title = btn.getAttribute('aria-label');
+    if (meta) meta.setAttribute('content', '#ffffff');
 
-    // 底圖替換
+    // 底圖建立（政府圖磚＋地名標籤）
     if (map) {
       if (basemapLayer) { map.removeLayer(basemapLayer); basemapLayer = null; }
       if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
 
-      if (theme === 'dark') {
-        /* 深色底圖改用政府圖磚＋.dark-tiles 反色濾鏡（見 CSS 說明）：
-           Esri 海外圖磚在本地手機網絡實測長時間零回應，深色模式
-           因此永遠空白；政府圖磚與淺色共用快取，載入速度一致。
-           地名標籤同樣以濾鏡處理（黑字→白字），需與淺色一樣另掛標籤層。 */
-        basemapLayer = L.tileLayer(BASEMAP.light, {
-          maxZoom: 19, maxNativeZoom: 19, attribution: GOV_ATTR, className: 'dark-tiles'
-        }).addTo(map);
-        labelLayer = L.tileLayer(state.lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
-          maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95, className: 'dark-tiles'
-        }).addTo(map);
-      } else {
-        basemapLayer = L.tileLayer(BASEMAP.light, {
-          maxZoom: 19, maxNativeZoom: 19, attribution: GOV_ATTR
-        }).addTo(map);
-        labelLayer = L.tileLayer(state.lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
-          maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95
-        }).addTo(map);
-      }
+      basemapLayer = L.tileLayer(BASEMAP.light, {
+        maxZoom: 19, maxNativeZoom: 19, attribution: GOV_ATTR
+      }).addTo(map);
+      labelLayer = L.tileLayer(state.lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
+        maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95
+      }).addTo(map);
       if (basemapLayer.bringToBack) basemapLayer.bringToBack();
-      else if (basemapLayer.eachLayer) basemapLayer.eachLayer((l) => l.bringToBack && l.bringToBack());
       indicateBasemapLoading(basemapLayer);
     }
-    if (persist) { try { localStorage.setItem(STORAGE.theme, theme); } catch (e) {} }
+    /* 一律把儲存偏好寫成 light：曾選深色模式的舊用戶升級後自動回到淺色，
+       不會被舊 localStorage 值帶回已移除的深色路徑。 */
+    try { localStorage.setItem(STORAGE.theme, 'light'); } catch (e) {}
   }
 
-  /* 底圖載入提示：切換主題後，新底圖的圖磚可能要數秒才畫完，
+  /* 底圖載入提示：開機時底圖圖磚可能要數秒才畫完，
      期間地圖看似一片空白、像壞掉一樣。改為：
      500ms 後仍未載完才顯示既有的載入膠囊（快取命中時完全不閃爍），
      全部圖層觸發 load 後收起；25 秒安全網確保膠囊不會永遠掛住。 */
@@ -3851,12 +3810,11 @@ body.has-subtabs .sub-caret { display: block; }
       if (el) el.setAttribute('aria-label', t('ui.tabsLabel'));
     });
 
-    // 地名標籤圖層（深淺模式都要跟語言重建；深色模式另加反色濾鏡 class）
+    // 地名標籤圖層（跟語言重建）
     if (map && labelLayer) {
       map.removeLayer(labelLayer);
       labelLayer = L.tileLayer(lang === 'tc' ? BASEMAP.labelTc : BASEMAP.labelEn, {
-        maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95,
-        className: state.theme === 'dark' ? 'dark-tiles' : ''
+        maxZoom: 19, maxNativeZoom: 19, pane: 'shadowPane', opacity: 0.95
       }).addTo(map);
     }
 
@@ -3918,9 +3876,6 @@ body.has-subtabs .sub-caret { display: block; }
   }
 
   function initUI() {
-    $('#theme-btn').addEventListener('click', () => {
-      applyTheme(state.theme === 'dark' ? 'light' : 'dark', true);
-    });
     $('#lang-btn').addEventListener('click', () => {
       applyLang(state.lang === 'tc' ? 'en' : 'tc', true);
     });
@@ -4004,22 +3959,18 @@ body.has-subtabs .sub-caret { display: block; }
 
   /* 啟動 */
   function boot() {
-    // 讀取偏好
-    let theme = 'light', lang = 'tc', fsIdx = 0;
+    // 讀取偏好（主題固定淺色：深色模式已移除，不再讀取舊偏好）
+    let lang = 'tc', fsIdx = 0;
     try {
-      theme = localStorage.getItem(STORAGE.theme) || 'light';
       lang = localStorage.getItem(STORAGE.lang) || 'tc';
       fsIdx = Number(localStorage.getItem(STORAGE.fs));
     } catch (e) {}
     if (isNaN(fsIdx)) fsIdx = 0;      // 未儲存過（null → 0）或值壞掉都回到最小
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem(STORAGE.theme)) {
-      theme = 'dark';
-    }
 
     initMap();
     initUI();
     buildTabs();
-    applyTheme(theme, false);
+    applyTheme('light', false);
     applyLang(lang, false);   // 會建立底圖與標籤圖層
     applyFontScale(fsIdx, false);   // 套用已儲存的字體大小
     renderLegend();
