@@ -70,7 +70,7 @@ body { overflow: hidden; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tab-active) 18%, transparent);
 }
 .brand h1 {
-  font-size: calc(15px * var(--fs)); font-weight: 700; margin: 0; white-space: nowrap;
+  font-size: calc(17px * var(--fs)); font-weight: 700; margin: 0; white-space: nowrap;
   letter-spacing: .2px;
 }
 
@@ -488,7 +488,7 @@ body.has-subtabs .sub-caret { display: block; }
    響應式：平板 768–1024
    ============================================================ */
 @media (max-width: 1024px) {
-  .brand h1 { font-size: calc(14px * var(--fs)); }
+  .brand h1 { font-size: calc(16px * var(--fs)); }
   .tab .tab-label { display: none; }
   .tab { padding: 0 14px; }
   .tab .tab-icon { font-size: 18px; }
@@ -504,7 +504,7 @@ body.has-subtabs .sub-caret { display: block; }
   /* 手機多了 A−／A+ 兩顆按鈕，品牌必須可以縮（否則頂欄會爆出畫面）。
      標題改為依可用寬度自動省略，不再用固定 46vw。 */
   .brand { flex: 0 1 auto; min-width: 0; }
-  .brand h1 { font-size: calc(13px * var(--fs)); max-width: none; overflow: hidden; text-overflow: ellipsis; }
+  .brand h1 { font-size: calc(15px * var(--fs)); max-width: none; overflow: hidden; text-overflow: ellipsis; }
   .tabs { display: none; }                       /* 手機隱藏頂部 Tab */
 
   .actions { margin-left: auto; }
