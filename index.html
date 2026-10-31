@@ -587,6 +587,116 @@ body.has-subtabs .sub-caret { display: block; }
 }
 @media (min-width: 768px) { .bottom-nav { display: none; } }
 
+/* ============================================================
+   視覺升級（Phase 1，純 CSS／inline 效果，零額外下載）：
+   開機品牌畫面、分頁滑動指示線、毛玻璃面板、標記脈衝。
+   動畫只用 transform／opacity，並受上方 prefers-reduced-motion 規則保護。
+   ============================================================ */
+
+/* 開機品牌畫面：JS 未跑完前先給使用者一個有品牌的畫面，取代空白地圖。
+   pointer-events: none —— 底圖在底下照常載入，也不會擋住任何操作；
+   第一個圖層載入完成（或 6 秒安全網）後由 hideBootSplash() 淡出移除。 */
+.boot-splash {
+  position: absolute; inset: var(--header-h) 0 0 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, #16a34a 10%, var(--bg-secondary)),
+    color-mix(in srgb, #4da6ff 12%, var(--bg-secondary)));
+  overflow: hidden;
+  transition: opacity .45s ease, visibility 0s linear .45s;
+}
+.boot-splash.done { opacity: 0; visibility: hidden; }
+.boot-splash::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.35) 50%, transparent 60%);
+  transform: translateX(-100%);
+  animation: splashSheen 1.8s ease-in-out infinite;
+}
+@keyframes splashSheen { 60%, 100% { transform: translateX(100%); } }
+.splash-card {
+  position: relative; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 26px 34px; border-radius: 18px;
+  background: color-mix(in srgb, var(--popup-bg) 78%, transparent);
+  border: 1px solid var(--border-color); box-shadow: var(--shadow-strong);
+}
+.splash-logo {
+  width: 54px; height: 54px; border-radius: 50%;
+  background: linear-gradient(135deg, #16a34a, #4da6ff);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--tab-active) 16%, transparent);
+  animation: splashPulse 1.6s ease-in-out infinite;
+}
+@keyframes splashPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+.splash-title { font-size: calc(17px * var(--fs)); font-weight: 700; letter-spacing: .3px; }
+.splash-sub { font-size: calc(12px * var(--fs)); color: var(--text-secondary); }
+.splash-bar {
+  width: 168px; height: 5px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--tab-active) 18%, transparent);
+  margin-top: 6px;
+}
+.splash-bar span {
+  display: block; height: 100%; width: 40%; border-radius: 999px;
+  background: linear-gradient(90deg, #16a34a, #4da6ff);
+  animation: splashBar 1.15s ease-in-out infinite;
+}
+@keyframes splashBar {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(280%); }
+}
+
+/* 分頁滑動指示線：取代原本即時跳色的 border，由 JS 設定 width／translateX。
+   指示線是分頁列的子元素，橫向捲動時會跟著內容一起捲。 */
+.tabs { position: relative; }
+.tab-indicator {
+  position: absolute; left: 0; bottom: 0; z-index: 1;
+  width: 0; height: 3px; border-radius: 3px 3px 0 0;
+  background: var(--tab-active); pointer-events: none;
+  transition: transform .28s ease, width .28s ease;
+}
+.bottom-nav .tab-indicator { bottom: auto; top: 0; border-radius: 0 0 3px 3px; }
+.tabs .tab[aria-selected="true"] { border-bottom-color: transparent; }
+.bottom-nav .tab[aria-selected="true"] { border-top-color: transparent; }
+
+/* 毛玻璃面板：只在支援 backdrop-filter 的瀏覽器才轉半透明，
+   不支援時維持原本實色，任何情況下可讀性都不會變差。 */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip,
+  .legend, .sub-tabs, .loading, .chart-modal__box, .a2hs {
+    background: color-mix(in srgb, var(--popup-bg) 82%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    backdrop-filter: blur(12px) saturate(1.4);
+  }
+  .sub-caret { background: color-mix(in srgb, var(--popup-bg) 82%, transparent); }
+  .legend-head { background: color-mix(in srgb, var(--bg-secondary) 75%, transparent); }
+}
+
+/* 標記升級：選中脈衝 + 高風險（AQHI ≥ 8）呼吸燈。
+   box-shadow 脈衝只套在單一被選中的標記上，成本可忽略。 */
+.pin { transition: transform .16s ease; }
+.pin--active {
+  transform: rotate(-45deg) scale(1.22);
+  animation: pinPulse 1.6s ease-out infinite;
+}
+@keyframes pinPulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tab-active) 55%, transparent), 0 1px 5px rgba(0,0,0,.4); }
+  70% { box-shadow: 0 0 0 15px transparent, 0 1px 5px rgba(0,0,0,.4); }
+  100% { box-shadow: 0 0 0 0 transparent, 0 1px 5px rgba(0,0,0,.4); }
+}
+.pin--alert {
+  box-shadow: 0 0 0 3px rgba(224,32,32,.30), 0 0 14px rgba(224,32,32,.55), 0 1px 5px rgba(0,0,0,.4);
+  animation: pinAlert 2.2s ease-in-out infinite;
+}
+@keyframes pinAlert {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(224,32,32,.25), 0 0 9px rgba(224,32,32,.40), 0 1px 5px rgba(0,0,0,.4); }
+  50% { box-shadow: 0 0 0 4px rgba(224,32,32,.35), 0 0 17px rgba(224,32,32,.65), 0 1px 5px rgba(0,0,0,.4); }
+}
+/* 同時被選中又屬高風險：脈衝優先（動畫會覆蓋 box-shadow），放大保留 */
+.pin--alert.pin--active { animation: pinPulse 1.6s ease-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
@@ -635,6 +745,16 @@ body.has-subtabs .sub-caret { display: block; }
 <div id="loading" class="loading" role="status" aria-live="polite">
   <span class="spinner" aria-hidden="true"></span>
   <span id="loading-text">載入中…</span>
+</div>
+
+<!-- 開機品牌畫面（純裝飾，不擋操作；第一個圖層載入後由 JS 淡出移除） -->
+<div id="boot-splash" class="boot-splash" aria-hidden="true">
+  <div class="splash-card">
+    <span class="splash-logo"></span>
+    <div class="splash-title">香港環保數據地圖</div>
+    <div class="splash-sub">載入最新環境數據…</div>
+    <div class="splash-bar"><span></span></div>
+  </div>
 </div>
 
 <div id="toast" class="toast" role="alert"></div>
@@ -2016,10 +2136,10 @@ body.has-subtabs .sub-caret { display: block; }
   /* ======================================================================
      8. 標記圖示
      ====================================================================== */
-  function pinIcon(color, glyph) {
+  function pinIcon(color, glyph, cls) {
     return L.divIcon({
       className: '',
-      html: `<div class="pin" style="background:${color}"><span>${glyph}</span></div>`,
+      html: `<div class="pin${cls ? ' ' + cls : ''}" style="background:${color}"><span>${glyph}</span></div>`,
       iconSize: [22, 22],
       iconAnchor: [11, 22],
       popupAnchor: [0, -22]
@@ -2698,8 +2818,11 @@ body.has-subtabs .sub-caret { display: block; }
         const a = byKey[key];
         if (a) matched++; else unmatched.push(airNameEn(p) || key || '(unknown)');
         const aqhiVal = a ? a.aqhi : null;
-        const color = aqhiVal != null ? AQHI_COLOR[aqhiClass(aqhiVal)] : '#7f8c8d';
-        lyr.setIcon(pinIcon(color, '🌬'));
+        const aCls = aqhiVal != null ? aqhiClass(aqhiVal) : null;
+        const color = aCls ? AQHI_COLOR[aCls] : '#7f8c8d';
+        /* 甚高／嚴重（AQHI ≥ 8）加呼吸燈光暈，讓高風險站在地圖上一眼可見 */
+        const pinCls = (aCls === 'aqhi-4' || aCls === 'aqhi-5') ? 'pin--alert' : '';
+        lyr.setIcon(pinIcon(color, '🌬', pinCls));
         lyr.bindPopup(() => airPopup(p, a), { className: 'custom-popup-wrap', maxWidth: 300, autoPan: true, autoPanPadding: [30, 60] });
         // 同上：tooltip 延遲求值，避免切換語言後殘留舊語言
         lyr.bindTooltip(() => esc(airName(p, state.lang)), { direction: 'top', offset: [0, -20] });
@@ -3178,7 +3301,7 @@ body.has-subtabs .sub-caret { display: block; }
      ====================================================================== */
   function buildTabs() {
     const mk = (container) => {
-      container.innerHTML = TABS.map((tb) => `
+      container.innerHTML = '<span class="tab-indicator" aria-hidden="true"></span>' + TABS.map((tb) => `
         <button class="tab" type="button" role="tab" id="tab-${tb.id}"
                 data-tab="${tb.id}" aria-selected="false" tabindex="-1"
                 aria-controls="map" title="${esc(t('tabs.' + tb.id))}"
@@ -3197,6 +3320,7 @@ body.has-subtabs .sub-caret { display: block; }
       btn.addEventListener('keydown', onTabKeydown);
     });
     updateSubTabs();
+    requestAnimationFrame(moveTabIndicators);
   }
 
   /* 分頁顯示文字：優先用縮寫（見 TABS.short），沒有才用完整名稱。
@@ -3215,6 +3339,7 @@ body.has-subtabs .sub-caret { display: block; }
         btn.setAttribute('aria-label', t('tabs.' + tb.id));
       });
     });
+    moveTabIndicators();
   }
 
   /* 子分頁只在「水質數據」分頁出現；同時切換 body 的 has-subtabs，
@@ -3320,6 +3445,20 @@ body.has-subtabs .sub-caret { display: block; }
       b.setAttribute('aria-selected', on ? 'true' : 'false');
       b.tabIndex = on ? 0 : -1;
     });
+    moveTabIndicators();
+  }
+
+  /* 把滑動指示線移到目前分頁的位置（桌面頂列與手機底列各一條）。
+     隱藏中的那一列（display:none）量到寬度為 0，直接略過，
+     待視窗尺寸切換時 resize 處理器會再補算。 */
+  function moveTabIndicators() {
+    document.querySelectorAll('#tabs, #bottom-nav').forEach((nav) => {
+      const ind = nav.querySelector('.tab-indicator');
+      const btn = nav.querySelector('.tab[aria-selected="true"]');
+      if (!ind || !btn || !btn.offsetWidth) { if (ind) ind.style.width = '0px'; return; }
+      ind.style.width = btn.offsetWidth + 'px';
+      ind.style.transform = `translateX(${btn.offsetLeft}px)`;
+    });
   }
 
   /* 載入中／錯誤指示掛在「分頁」上，但 ensureLayer 傳入的是「圖層」id，
@@ -3330,6 +3469,7 @@ body.has-subtabs .sub-caret { display: block; }
     /* 轉圈圖示（12px + 6px 間距）會把分頁撐寬 18px，連帶推移右邊的分頁。
        若「水質數據」左邊的分頁正在載入，子分頁列就會偏掉，故立即重新對齊。 */
     positionSubTabs();
+    moveTabIndicators();
   }
   function setTabError(layerId, on) {
     const tabId = tabOfLayer(layerId);
@@ -3344,6 +3484,14 @@ body.has-subtabs .sub-caret { display: block; }
     const el = $('#loading');
     if (on) { $('#loading-text').textContent = text || t('ui.loading'); el.classList.add('show'); }
     else el.classList.remove('show');
+  }
+
+  /* 開機品牌畫面：淡出後從 DOM 移除，避免長期佔住一層。重複呼叫安全。 */
+  function hideBootSplash() {
+    const el = $('#boot-splash');
+    if (!el || el.classList.contains('done')) return;
+    el.classList.add('done');
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 600);
   }
 
   /* 移除地圖上所有已存在圖層 */
@@ -3716,6 +3864,18 @@ body.has-subtabs .sub-caret { display: block; }
     map.attributionControl.setPrefix(
       '<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a> | 資料來源：環境保護署 / DATA.GOV.HK / CSDI'
     );
+
+    /* 標記選中效果：Popup 開啟時，來源標記放大並發出脈衝；關閉時清除。
+       cluster 內的標記沒有 .pin（或當下不在畫面上），一律安全略過。 */
+    map.on('popupopen', (e) => {
+      document.querySelectorAll('.pin--active').forEach((p) => p.classList.remove('pin--active'));
+      const src = e.popup && e.popup._source;
+      const pin = src && src._icon ? src._icon.querySelector('.pin') : null;
+      if (pin) pin.classList.add('pin--active');
+    });
+    map.on('popupclose', () => {
+      document.querySelectorAll('.pin--active').forEach((p) => p.classList.remove('pin--active'));
+    });
   }
 
   function initUI() {
@@ -3826,7 +3986,13 @@ body.has-subtabs .sub-caret { display: block; }
 
     // 預設顯示「香港空氣質素監測網絡」
     state.active = null;
-    activate('air');
+    /* 第一個圖層一載入完成就撤走開機畫面；6 秒安全網確保就算上游全滅，
+       畫面也不會永遠蓋住地圖（錯誤會改由分頁紅點與 toast 呈現）。 */
+    const splashTimer = setTimeout(hideBootSplash, 6000);
+    Promise.resolve(activate('air')).catch(() => {}).finally(() => {
+      clearTimeout(splashTimer);
+      hideBootSplash();
+    });
     prefetchRest();
     startAutoUpdate();
     checkAppUpdate();
@@ -3836,6 +4002,7 @@ body.has-subtabs .sub-caret { display: block; }
       map.invalidateSize();
       syncMobileUI();
       positionSubTabs();          // 分頁寬度／位置可能改變，子分頁列要重新對齊
+      moveTabIndicators();        // 桌面／手機版面切換後，指示線也要回到正確的分頁上
     }, 150));
 
     /* 頂部分頁列可橫向捲動（窄視窗），捲動時子分頁列必須跟著跑，
@@ -3846,7 +4013,7 @@ body.has-subtabs .sub-caret { display: block; }
     /* 中文字型（PingFang TC / Noto Sans TC）載入後分頁寬度會變，
        屆時需再對齊一次。 */
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(() => positionSubTabs()).catch(() => {});
+      document.fonts.ready.then(() => { positionSubTabs(); moveTabIndicators(); }).catch(() => {});
     }
 
     /* 安全網：任何分頁按鈕的尺寸變化（轉圈、字型、瀏覽器縮放、語言切換）
@@ -3854,7 +4021,7 @@ body.has-subtabs .sub-caret { display: block; }
        positionSubTabs() 只改 #sub-tabs 的 left/top，不會回過頭改變分頁尺寸，
        故不會造成 ResizeObserver 迴圈。 */
     if (window.ResizeObserver) {
-      const ro = new ResizeObserver(() => positionSubTabs());
+      const ro = new ResizeObserver(() => { positionSubTabs(); moveTabIndicators(); });
       document.querySelectorAll('.tab').forEach((b) => ro.observe(b));
     }
 
