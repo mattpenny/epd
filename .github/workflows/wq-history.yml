@@ -32,7 +32,10 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # 180, not 90: a clean full scrape is ~46 units at roughly a minute or
+    # two each once downloads work; 90 left too little headroom for the
+    # site's flaky retries (the 2026-11-01 re-run was cancelled at 90).
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -43,11 +46,19 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Chromium for headless scraping
+      # Real Google Chrome, NOT apt's chromium-browser: on current Ubuntu
+      # that package is the Snap build, whose private /tmp means the CSVs
+      # Chrome "downloads" are invisible to the Node process watching the
+      # download dir — every unit failed with "no csv downloaded" while the
+      # browser reported the download completed (diagnosed 2026-11-01 with
+      # CDP download-event logging; one-zone retest with this .deb build
+      # fetched Deep Bay's 921 samples first try).
+      - name: Install Chrome for headless scraping
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium-browser
-          echo "CHROME_PATH=$(which chromium-browser)" >> "$GITHUB_ENV"
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+          echo "CHROME_PATH=$(which google-chrome)" >> "$GITHUB_ENV"
 
       - name: Scrape EPD water-quality history
         run: node tools/build-wq-history.mjs --years=10
