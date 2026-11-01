@@ -29,25 +29,18 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Chromium for headless scraping
+      - name: Install Google Chrome for headless scraping
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium-browser
-          echo "CHROME_PATH=$(which chromium-browser)" >> "$GITHUB_ENV"
-          chromium-browser --version || true
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+          echo "CHROME_PATH=$(which google-chrome)" >> "$GITHUB_ENV"
+          google-chrome --version || true
           node --version
 
-      - name: "Attempt A — session-level download behaviour (current)"
+      - name: "Verify — real Chrome, production settings, one zone"
         continue-on-error: true
         timeout-minutes: 10
         env:
           WQ_DEBUG: '1'
-        run: node tools/build-wq-history.mjs --only=marine --zone="Deep Bay" --years=10
-
-      - name: "Attempt B — browser-level download behaviour"
-        continue-on-error: true
-        timeout-minutes: 10
-        env:
-          WQ_DEBUG: '1'
-          WQ_DL_LEVEL: browser
         run: node tools/build-wq-history.mjs --only=marine --zone="Deep Bay" --years=10
