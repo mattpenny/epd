@@ -49,6 +49,15 @@ let CHROME = null;
 const argv = process.argv.slice(2);
 const HEADED = argv.includes('--headed');
 const RESET = argv.includes('--reset');
+const ZONE = (argv.find((a) => a.startsWith('--zone=')) || '').slice(7) || null;
+/* 診斷開關（預設關閉，行為與以往完全一樣）：
+   WQ_DEBUG=1          —— 印出 CDP 下載事件、setDownloadBehavior 的結果、
+                          以及點擊「顯示」後頁面的狀態，用來查 CI 裡 CSV
+                          下載永不到手的問題（2026-11-01 診斷時加入）。
+   WQ_DL_LEVEL=browser —— 把 Browser.setDownloadBehavior 改送到瀏覽器層級
+                          （不帶 sessionId），與預設的 session 層級對照。 */
+const DEBUG = process.env.WQ_DEBUG === '1';
+const DL_BROWSER = process.env.WQ_DL_LEVEL === 'browser';
 const readJson = (f, dflt) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) || dflt; } catch (e) { return dflt; } };
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v, null, 1)); };
 const YEARS = Number((argv.find((a) => a.startsWith('--years=')) || '--years=10').slice(8)) || 10;
@@ -163,6 +172,21 @@ async function startBrowser(downloadDir) {
     if (m.id != null && pending.has(m.id)) {
       const { resolve, reject } = pending.get(m.id); pending.delete(m.id);
       m.error ? reject(new Error(m.error.message)) : resolve(m.result);
+      return;
+    }
+    if (DEBUG && m.method) {
+      const p = m.params || {};
+      if (/download/i.test(m.method)) {
+        log('[CDP event]', m.method, JSON.stringify(p).slice(0, 400));
+      } else if (m.method === 'Network.responseReceived') {
+        const h = (p.response && p.response.headers) || {};
+        const mime = (p.response && p.response.mimeType) || '';
+        if (/csv|octet|disposition/i.test(mime + ' ' + JSON.stringify(h))) {
+          log('[CDP event] Network.responseReceived', p.response.status, mime, JSON.stringify(h).slice(0, 400));
+        }
+      } else if (m.method === 'Network.loadingFailed') {
+        log('[CDP event] Network.loadingFailed', JSON.stringify(p).slice(0, 300));
+      }
     }
   });
   const { targetInfos } = await send('Target.getTargets');
@@ -171,7 +195,20 @@ async function startBrowser(downloadDir) {
   await send('Page.enable', {}, sessionId);
   await send('Runtime.enable', {}, sessionId);
   await send('Network.enable', {}, sessionId);
-  await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir, eventsEnabled: true }, sessionId);
+  try {
+    const dlParams = { behavior: 'allow', downloadPath: downloadDir, eventsEnabled: true };
+    const dlRes = DL_BROWSER
+      ? await send('Browser.setDownloadBehavior', dlParams)
+      : await send('Browser.setDownloadBehavior', dlParams, sessionId);
+    if (DEBUG) {
+      log('[DL] setDownloadBehavior level=' + (DL_BROWSER ? 'browser' : 'session') + ' ok:', JSON.stringify(dlRes || {}).slice(0, 200));
+      const ver = await send('Browser.getVersion').catch(() => null);
+      if (ver) log('[DL] browser:', ver.product, '| UA:', String(ver.userAgent || '').slice(0, 120));
+    }
+  } catch (e) {
+    if (DEBUG) log('[DL] setDownloadBehavior FAILED:', e.message);
+    throw e;
+  }
 }
 
 function stopBrowser() {
@@ -262,11 +299,27 @@ async function parameterPageToCsv(downloadDir, fromYear) {
   await ev(`(() => { document.getElementById('form:display').click(); return true; })()`);
   let file = null;
   const deadline = Date.now() + 75000;
+  let dbgStateAt = 0;
   while (Date.now() < deadline) {
     await sleep(1000);
     const files = fs.readdirSync(downloadDir);
     const csv = files.find((f) => /\.csv$/i.test(f));
     if (csv && !files.some((f) => f.endsWith('.crdownload'))) { file = path.join(downloadDir, csv); break; }
+    if (DEBUG && files.length) log('[DL] downloadDir now:', files.join(', '));
+    if (DEBUG && !dbgStateAt && Date.now() > deadline - 69000) {
+      dbgStateAt = 1;
+      const st = await ev(`(() => ({ href: location.href, ct: document.contentType, len: (document.body && document.body.innerHTML || '').length }))()`).catch(() => null);
+      if (st) log('[DL] page 6s after display click:', JSON.stringify(st));
+    }
+  }
+  if (!file && DEBUG) {
+    for (const alt of [path.join(os.homedir(), 'Downloads'), path.join(os.homedir(), 'download')]) {
+      try {
+        const hits = fs.readdirSync(alt).filter((f) => /\.csv$/i.test(f));
+        if (hits.length) log('[DL] csv found in ALT dir', alt, hits.join(', '));
+      } catch (e) {}
+    }
+    log('[DL] gave up waiting; downloadDir contains:', fs.readdirSync(downloadDir).join(', ') || '(empty)');
   }
   if (!file) return { error: 'no csv downloaded' };
 
@@ -442,6 +495,7 @@ async function main() {
     }
     if (!zones.length) { log(`[${kind}] no zone list — skipped`); continue; }
     log(`[${kind}] ${zones.length} zones: ${zones.join(', ')}`);
+    if (ZONE) { zones = zones.filter((z) => z === ZONE); log(`[${kind}] --zone filter: ${zones.length} zone(s) left`); }
 
     /* 先把「單位」列出來。海水：每個管制區一個單位。河溪：每個管制區 × 每條河溪
        一個單位（河溪清單要開瀏覽器到該區的 Station Selection 頁拿）。 */
