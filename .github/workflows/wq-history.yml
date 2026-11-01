@@ -36,9 +36,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 22+: tools/build-wq-history.mjs talks to Chrome over the global
+      # WebSocket, which Node 20 does not provide (first CI run, 2026-11-01,
+      # died instantly with "WebSocket is not defined").
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Chromium for headless scraping
         run: |
